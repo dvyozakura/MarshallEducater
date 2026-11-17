@@ -551,3 +551,5 @@ table.grid th.num {
 .unit-name { width: 320px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .preview { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #fcfcfe; min-height: 60px; }
+.thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.thumb { height: 150px; border: 1px solid var(--line); background: #fff; }

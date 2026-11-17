@@ -3,6 +3,7 @@ import type { Project } from '../../shared/schema';
 import { api, errorMessage } from '../api';
 import { Empty, ErrorBox } from '../components';
 import { useNav } from '../nav';
+import { SourcesTab } from './subject/SourcesTab';
 import { UnitsTab } from './subject/UnitsTab';
 
 export const SUBJECT_TABS = [
@@ -51,7 +52,7 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
       </div>
       <div data-testid={`tabpanel-${current}`}>
         {current === 'tests' && <Placeholder>テストと課題の履歴は、ここに出ます。</Placeholder>}
-        {current === 'sources' && <Placeholder>取り込んだ資料は、ここに出ます。</Placeholder>}
+        {current === 'sources' && <SourcesTab {...props} />}
         {current === 'weakness' && <Placeholder>苦手マップは、採点のあとにここに出ます。</Placeholder>}
         {current === 'trend' && <Placeholder>志望校の傾向は、過去問を確定したあとにここに出ます。</Placeholder>}
         {current === 'notes' && <Placeholder>授業ノートは、ここに出ます。</Placeholder>}

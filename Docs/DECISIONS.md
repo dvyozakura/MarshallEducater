@@ -78,4 +78,13 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - 初期ツリーの ID は位置から決める(`u01`、`u01-02`)。Claude の調整では、既存の ID と名前を変えないことをプロンプトで求め、出力の ID の重なり・空の名前は検査してやり直させる。苦手マップなどの記録は単元 ID で結び付ける。
 - 初期ツリーは、科目の構成を参考に見出しだけを自作したもの(教科書の文章は使っていない)。
 
+## PDF の取り込み(項目8)
+- ページ画像化は画面側(renderer)の canvas で pdf.js を使って行い、PNG を1枚ずつ main に渡して保存する(`importBegin` → `importOriginal` → `importPage`×n → `importFinish`)。途中で失敗したら作りかけの資料フォルダは消す。
+- ページ画像の大きさ: 長い辺 1800px(暫定。Claude が読むのに十分で、大きすぎない値)。PDF に文字の層があれば `pages/page-NNN.txt` にも保存し、読み取りの助けにする。
+- 画像(JPG/PNG)の取り込み: 複数選ぶとファイル名の順に1枚=1ページ。元ファイルは `original-<n>.<拡張子>`、PDF は `original.pdf`。
+- 画面のファイルは `app://renderer/…` という専用の経路で配る(file:// では pdf.js の worker・文字コード表の読み込みに制約があるため)。画面からアプリ外のページへの移動・新しいウィンドウは禁止。
+- pdf.js の付属データ(cmaps・standard_fonts・wasm)は、ビルド時に `out/renderer/pdfjs/` へコピーする。
+- パスワード付き PDF・壊れた PDF は日本語で断る。
+- ページ画像の画面表示は、main からバイト列をもらって blob URL にする(画面にファイルのパスを直接は触らせない)。
+
 <!-- END -->

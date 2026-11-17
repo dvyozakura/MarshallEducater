@@ -32,4 +32,9 @@ mkdirSync(resolve(out, 'katex'), { recursive: true });
 cpSync(resolve(root, 'node_modules/katex/dist/katex.min.css'), resolve(out, 'katex/katex.min.css'));
 cpSync(resolve(root, 'node_modules/katex/dist/fonts'), resolve(out, 'katex/fonts'), { recursive: true });
 
+// pdf.js が PDF を描くときに読むデータ(日本語の文字コード表・標準フォント・画像の復号)
+for (const dir of ['cmaps', 'standard_fonts', 'wasm']) {
+  cpSync(resolve(root, 'node_modules/pdfjs-dist', dir), resolve(out, 'renderer/pdfjs', dir), { recursive: true });
+}
+
 console.log('build: OK -> out/');

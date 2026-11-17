@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
-import { join } from 'node:path';
+import { app, BrowserWindow, ipcMain, net, protocol } from 'electron';
+import { join, normalize, sep } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { AppCore } from '../core/app';
 import { createApi } from '../core/api';
 
@@ -34,7 +35,12 @@ function createWindow(): void {
   });
   if (headless) mainWindow.showInactive();
   mainWindow.setMenuBarVisibility(false);
-  void mainWindow.loadFile(join(__dirname, '../renderer/index.html'));
+  void mainWindow.loadURL('app://renderer/index.html');
+  // 画面の中のリンクなどで、アプリの外のページへ移動させない
+  mainWindow.webContents.on('will-navigate', (e, url) => {
+    if (!url.startsWith('app://renderer/')) e.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -46,7 +52,23 @@ function broadcast(event: unknown): void {
   }
 }
 
+// 画面のファイルは app://renderer/… で配る(file:// だと worker や fetch に制約があるため)。
+protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]);
+
+function registerAppProtocol(): void {
+  const rendererDir = normalize(join(__dirname, '../renderer'));
+  protocol.handle('app', (request) => {
+    const url = new URL(request.url);
+    const file = normalize(join(rendererDir, decodeURIComponent(url.pathname)));
+    if (url.host !== 'renderer' || (file !== rendererDir && !file.startsWith(rendererDir + sep))) {
+      return new Response('forbidden', { status: 403 });
+    }
+    return net.fetch(pathToFileURL(file).toString());
+  });
+}
+
 void app.whenReady().then(() => {
+  registerAppProtocol();
   const core = new AppCore({
     userDataDir: app.getPath('userData'),
     defaultDataDir: join(app.getPath('documents'), 'MarshallEducaterData'),

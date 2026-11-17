@@ -9,6 +9,7 @@ import { callClaude } from './claude/task';
 import { ensureDir } from './fsutil';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { adjustUnits, getUnits, saveUnits } from './units';
 
 interface JobDef<P> {
@@ -94,6 +95,18 @@ export function createApi(core: AppCore) {
     getUnits: (projectId: string, subjectId: string) => getUnits(core, projectId, subjectId),
     saveUnits: (projectId: string, subjectId: string, tree: UnitNode[]) => saveUnits(core, projectId, subjectId, tree),
     startAdjustUnits: (projectId: string, subjectId: string): JobInfo => startAdjustUnits({ projectId, subjectId }),
+
+    // ───── 資料の取り込み ─────
+    importBegin: (projectId: string, subjectId: string, info: ImportBegin) => importBegin(core, projectId, subjectId, info),
+    importOriginal: (projectId: string, subjectId: string, sourceId: string, bytes: Uint8Array, name: string) =>
+      importOriginal(core, projectId, subjectId, sourceId, bytes, name),
+    importPage: (projectId: string, subjectId: string, sourceId: string, pageNo: number, png: Uint8Array, text?: string) =>
+      importPage(core, projectId, subjectId, sourceId, pageNo, png, text),
+    importFinish: (projectId: string, subjectId: string, sourceId: string, pageCount: number) => importFinish(core, projectId, subjectId, sourceId, pageCount),
+    listSources: (projectId: string, subjectId: string) => listSources(core, projectId, subjectId),
+    getSource: (projectId: string, subjectId: string, sourceId: string) => getSource(core, projectId, subjectId, sourceId),
+    deleteSource: (projectId: string, subjectId: string, sourceId: string) => deleteSource(core, projectId, subjectId, sourceId),
+    readPageImage: (projectId: string, subjectId: string, sourceId: string, pageNo: number) => readPageImage(core, projectId, subjectId, sourceId, pageNo),
   };
 }
 
