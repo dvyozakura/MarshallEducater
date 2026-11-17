@@ -36,6 +36,7 @@ export async function launchApp(opts: { dir?: string; env?: Record<string, strin
       ME_DATA_DIR: dataDir,
       ME_USER_DATA: userData,
       ME_HEADLESS: '1',
+      ME_TODAY: '2026-11-17',
       ...(opts.env ?? {}),
     },
   });
@@ -54,4 +55,23 @@ export async function launchApp(opts: { dir?: string; env?: Record<string, strin
     setFake: (control) => writeFileSync(controlFile, JSON.stringify(control), 'utf8'),
   };
   return launched;
+}
+
+export interface ProjectSpec {
+  university: string;
+  faculty: string;
+  examDate: string;
+  subjects: string[];
+}
+
+/** ホーム画面から、プロジェクトを1つ作る。作成後はダッシュボードにいる。 */
+export async function createProject(page: Page, spec: ProjectSpec): Promise<void> {
+  await page.getByTestId('nav-home').click();
+  await page.getByTestId('new-project').click();
+  await page.getByTestId('f-university').fill(spec.university);
+  await page.getByTestId('f-faculty').fill(spec.faculty);
+  await page.getByTestId('f-examDate').fill(spec.examDate);
+  for (const s of spec.subjects) await page.getByTestId(`subject-${s}`).check();
+  await page.getByTestId('save-project').click();
+  await page.getByTestId('screen-dashboard').waitFor();
 }

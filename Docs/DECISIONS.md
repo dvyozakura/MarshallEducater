@@ -65,4 +65,12 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - CLAUDE.md の構成に足したファイル(細部): 資料ごとの `source.json`(種類・題名・状態)、`extracted.original.json`(Claude が最初に読んだまま。補正率の計算用)、`figures/`(切り出した図)、科目ごとの `review.json`(復習の予定)、テストごとの `explanations.json`・`booklet.pdf`・`answer_sheet.pdf`、プロジェクト直下の `.me/io/`(受け渡しの一時置き場)、データフォルダ直下の `usage.json`。紙の答案 `tests/<ID>/submission/` は資料と同じ構成(original.pdf、pages/、extracted.json、corrections.json)。
 - 難易度の設定は2つに分けた: 試験の型(共通テスト/国公立二次/私大)と、目標の高さ(合格最低点をねらう/合格者平均をねらう/上位での合格をねらう)。暫定。
 
+## プロジェクトと画面の窓口(項目5)
+- 画面 → main の窓口は IPC `me:call`(機能名+引数)1本だけ。使える機能は `src/core/api.ts` の `createApi()` が返す一覧に限る(一覧に無い名前は断る)。main → 画面の知らせは `me:event`(ジョブの変化)。`createApi` は Electron に依存しないので、単体テストから同じ入口を呼べる。
+- プロジェクトの CLAUDE.md のひな形は `src/prompts/project_claude.md`。設定を保存するたびに書き直す。
+- プロジェクトの `.claude/settings.json`: allow `Read(./**)` `Edit(./**)` `Write(./**)`、deny `Bash` `PowerShell` `WebFetch` `WebSearch`。
+- 科目を外しても科目フォルダは消さない(データを守る)。プロジェクトの削除機能は作っていない(エクスプローラーでフォルダを消す)。暫定。
+- 自動操作テストのウィンドウ: 完全に隠す(show:false)と描画が止まり Playwright の操作が1回ごとに数秒かかったため、`ME_HEADLESS=1` のときは画面の外(-20000,-20000)に、フォーカスを取らない形で出す。
+- テスト用に、今日の日付は環境変数 `ME_TODAY` で差し替えられる。
+
 <!-- END -->
