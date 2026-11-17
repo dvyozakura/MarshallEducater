@@ -3,7 +3,10 @@ import { JobBar, JobsProvider } from './jobs';
 import { NavContext, routeProjectId, type Nav, type Route } from './nav';
 import { Dashboard } from './screens/Dashboard';
 import { Home } from './screens/Home';
+import { Jobs } from './screens/Jobs';
 import { ProjectForm } from './screens/ProjectForm';
+import { Settings } from './screens/Settings';
+import { Subject } from './screens/Subject';
 
 function Screen({ route }: { route: Route }) {
   switch (route.screen) {
@@ -15,6 +18,12 @@ function Screen({ route }: { route: Route }) {
       return <ProjectForm projectId={route.projectId} />;
     case 'dashboard':
       return <Dashboard projectId={route.projectId} />;
+    case 'subject':
+      return <Subject projectId={route.projectId} subjectId={route.subjectId} tab={route.tab} />;
+    case 'jobs':
+      return <Jobs />;
+    case 'settings':
+      return <Settings />;
     default:
       return <div className="page">この画面はまだありません。</div>;
   }

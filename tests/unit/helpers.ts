@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { AppCore } from '../../src/core/app';
 import { createApi, type Api } from '../../src/core/api';
 import type { ClaudeSettings } from '../../src/core/claude/runner';
+import type { JobInfo } from '../../src/shared/jobs';
 import type { ProjectInput } from '../../src/shared/schema';
 
 export const repoRoot = resolve(__dirname, '../..');
@@ -63,6 +64,18 @@ export function makeCore(control: unknown = {}, dir = makeTmpDir('core-')): Test
     extraEnv: fake.settings.extraEnv,
   });
   return { dir, core, api: createApi(core), fake };
+}
+
+/** ジョブが終わるまで待ち、完了していなければテストを失敗させる。 */
+export async function done(t: TestCore, job: JobInfo): Promise<JobInfo> {
+  const info = await t.core.jobs.wait(job.id);
+  if (info.status !== 'done') throw new Error(`ジョブ「${info.title}」が ${info.status}: ${info.error?.kind} ${info.error?.message}`);
+  return info;
+}
+
+/** ジョブが終わるまで待つ(失敗でも例外にしない)。 */
+export function settled(t: TestCore, job: JobInfo): Promise<JobInfo> {
+  return t.core.jobs.wait(job.id);
 }
 
 export const sampleInput: ProjectInput = {

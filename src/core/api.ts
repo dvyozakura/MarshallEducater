@@ -2,14 +2,56 @@
 // Electron に依存しないので、単体テストからも同じ入口で呼べる。
 import { todayString } from '../shared/dates';
 import type { JobInfo } from '../shared/jobs';
-import { PingOutputSchema, type AppSettings, type ProjectInput } from '../shared/schema';
+import { PingOutputSchema, type AppSettings, type ProjectInput, type UnitNode } from '../shared/schema';
 import { SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
 import { ensureDir } from './fsutil';
-import { createProject, getProject, listProjects, updateProject } from './projects';
+import type { JobContext } from './jobs';
+import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { adjustUnits, getUnits, saveUnits } from './units';
+
+interface JobDef<P> {
+  title: (params: P) => string;
+  projectId?: (params: P) => string | null;
+  run: (params: P, ctx: JobContext) => Promise<unknown>;
+}
 
 export function createApi(core: AppCore) {
+  // ジョブの種類の登録簿。「もう一度試す」は、同じ種類・同じ引数で作り直す。
+  const jobDefs = new Map<string, JobDef<never>>();
+  function defineJob<P>(kind: string, def: JobDef<P>): (params: P) => JobInfo {
+    jobDefs.set(kind, def as unknown as JobDef<never>);
+    return (params: P) =>
+      core.jobs.add({
+        kind,
+        title: def.title(params),
+        projectId: def.projectId?.(params) ?? (params as { projectId?: string }).projectId ?? null,
+        params,
+        run: (ctx) => def.run(params, ctx),
+      });
+  }
+  const subjectName = (projectId: string, subjectId: string) => getSubject(getProject(core, projectId), subjectId).name;
+
+  const startPing = defineJob<Record<string, never>>('ping', {
+    title: () => 'Claude との接続の確認',
+    run: async (_p, ctx) => {
+      const dir = core.dataDir();
+      ensureDir(dir);
+      ctx.progress('Claude の返事を待っています');
+      const r = await callClaude({ projectDir: dir, kind: 'ping', vars: { note: '' }, schema: PingOutputSchema, env: core.claudeEnv(), signal: ctx.signal });
+      return r.data;
+    },
+  });
+
+  const startAdjustUnits = defineJob<{ projectId: string; subjectId: string }>('adjust_units', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 単元の調整`,
+    run: async (p, ctx) => {
+      const units = await adjustUnits(core, p.projectId, p.subjectId, ctx);
+      return { note: units.note };
+    },
+  });
+
   return {
     // ───── アプリ全体 ─────
     appInfo: () => ({
@@ -29,21 +71,17 @@ export function createApi(core: AppCore) {
     listJobs: (): JobInfo[] => core.jobs.list(),
     cancelJob: (id: string): boolean => core.jobs.cancel(id),
     clearFinishedJobs: (): void => core.jobs.clearFinished(),
-    /** Claude を呼べるかの確認(設定画面の「接続の確認」)。 */
-    startPing: (): JobInfo => {
-      const dir = core.dataDir();
-      ensureDir(dir);
-      return core.jobs.add({
-        kind: 'ping',
-        title: 'Claude との接続の確認',
-        params: {},
-        run: async (ctx) => {
-          ctx.progress('Claude の返事を待っています');
-          const r = await callClaude({ projectDir: dir, kind: 'ping', vars: { note: '' }, schema: PingOutputSchema, env: core.claudeEnv(), signal: ctx.signal });
-          return r.data;
-        },
-      });
+    /** 失敗・取り消しになったジョブを、同じ内容でもう一度並べる。 */
+    retryJob: (id: string): JobInfo => {
+      const job = core.jobs.get(id);
+      if (!job) throw new Error('そのジョブはもうありません');
+      const def = jobDefs.get(job.kind) as JobDef<unknown> | undefined;
+      if (!def) throw new Error('このジョブはやり直せません');
+      const params = job.params;
+      return core.jobs.add({ kind: job.kind, title: job.title, projectId: job.projectId, params, run: (ctx) => def.run(params, ctx) });
     },
+    /** Claude を呼べるかの確認(設定画面の「接続の確認」)。 */
+    startPing: (): JobInfo => startPing({}),
 
     // ───── プロジェクト ─────
     subjectPresets: () => SUBJECT_PRESETS.map((p) => ({ name: p.name, group: p.group })),
@@ -51,6 +89,11 @@ export function createApi(core: AppCore) {
     getProject: (projectId: string) => getProject(core, projectId),
     createProject: (input: ProjectInput) => createProject(core, input),
     updateProject: (projectId: string, input: ProjectInput) => updateProject(core, projectId, input),
+
+    // ───── 単元 ─────
+    getUnits: (projectId: string, subjectId: string) => getUnits(core, projectId, subjectId),
+    saveUnits: (projectId: string, subjectId: string, tree: UnitNode[]) => saveUnits(core, projectId, subjectId, tree),
+    startAdjustUnits: (projectId: string, subjectId: string): JobInfo => startAdjustUnits({ projectId, subjectId }),
   };
 }
 

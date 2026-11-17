@@ -542,3 +542,10 @@ table.grid th.num {
   flex: 1;
   min-width: 160px;
 }
+.unit-tree { margin-top: 10px; }
+.unit-line { display: flex; gap: 6px; align-items: center; padding: 3px 0; }
+.unit-line.depth-2 { padding-left: 28px; }
+.unit-line.depth-3 { padding-left: 56px; }
+.unit-line.off .unit-name { color: var(--muted); text-decoration: line-through; }
+.unit-line.depth-1 .unit-name { font-weight: 700; }
+.unit-name { width: 320px; }
