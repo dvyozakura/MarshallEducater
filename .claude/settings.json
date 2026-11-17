@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(./Tools/setup.sh:*)",
+      "Bash(./Tools/run_tests.sh:*)",
+      "Bash(./Tools/run_e2e.sh:*)",
+      "Bash(./Tools/build_dev.sh:*)",
+      "Bash(./Tools/build_dist.sh:*)",
+      "Bash(./Tools/smoke_real.sh:*)",
+      "Bash(./Tools/check_logs.sh:*)",
+      "Bash(npm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(claude --help:*)",
+      "Bash(claude --version:*)",
+      "Bash(claude -p:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(chmod:*)",
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(rm -rf:*)",
+      "Bash(npm publish:*)"
+    ]
+  }
+}

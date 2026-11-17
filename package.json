@@ -1,0 +1,38 @@
+{
+  "name": "marshalleducater",
+  "productName": "MarshallEducater",
+  "version": "0.1.0",
+  "description": "Claude を教員にする Windows デスクトップアプリ",
+  "private": true,
+  "main": "out/main/index.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/build.mjs && electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "dist": "node scripts/dist.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@playwright/test": "^1.65.1",
+    "@types/katex": "^0.16.8",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.3.3",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.0"
+  },
+  "dependencies": {
+    "katex": "^0.19.1",
+    "marked": "^18.2.1",
+    "pdfjs-dist": "^6.5.438",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zod": "^4.6.7"
+  }
+}
