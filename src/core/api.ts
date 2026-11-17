@@ -9,6 +9,7 @@ import { callClaude } from './claude/task';
 import { ensureDir } from './fsutil';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { adjustUnits, getUnits, saveUnits } from './units';
 
@@ -50,6 +51,16 @@ export function createApi(core: AppCore) {
     run: async (p, ctx) => {
       const units = await adjustUnits(core, p.projectId, p.subjectId, ctx);
       return { note: units.note };
+    },
+  });
+
+  const sourceTitle = (projectId: string, subjectId: string, sourceId: string) => getSource(core, projectId, subjectId, sourceId).title;
+
+  const startReadSource = defineJob<{ projectId: string; subjectId: string; sourceId: string }>('read_source', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 「${sourceTitle(p.projectId, p.subjectId, p.sourceId)}」の読み取り`,
+    run: async (p, ctx) => {
+      const ex = await readSource(core, p.projectId, p.subjectId, p.sourceId, ctx);
+      return { problems: ex.problems.length };
     },
   });
 
@@ -107,6 +118,10 @@ export function createApi(core: AppCore) {
     getSource: (projectId: string, subjectId: string, sourceId: string) => getSource(core, projectId, subjectId, sourceId),
     deleteSource: (projectId: string, subjectId: string, sourceId: string) => deleteSource(core, projectId, subjectId, sourceId),
     readPageImage: (projectId: string, subjectId: string, sourceId: string, pageNo: number) => readPageImage(core, projectId, subjectId, sourceId, pageNo),
+
+    // ───── 読み取りと補正 ─────
+    startReadSource: (projectId: string, subjectId: string, sourceId: string): JobInfo => startReadSource({ projectId, subjectId, sourceId }),
+    getExtracted: (projectId: string, subjectId: string, sourceId: string) => getExtracted(core, projectId, subjectId, sourceId),
   };
 }
 

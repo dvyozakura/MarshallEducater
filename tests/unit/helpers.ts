@@ -1,10 +1,10 @@
-import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 import { AppCore } from '../../src/core/app';
 import { createApi, type Api } from '../../src/core/api';
 import type { ClaudeSettings } from '../../src/core/claude/runner';
 import type { JobInfo } from '../../src/shared/jobs';
-import type { ProjectInput } from '../../src/shared/schema';
+import type { ProjectInput, SourceKind } from '../../src/shared/schema';
 
 export const repoRoot = resolve(__dirname, '../..');
 
@@ -62,8 +62,28 @@ export function makeCore(control: unknown = {}, dir = makeTmpDir('core-')): Test
     defaultDataDir: join(dir, 'data'),
     envDataDir: join(dir, 'data'),
     extraEnv: fake.settings.extraEnv,
+    // 本物は Electron の機能で切り出す。テストでは「切り出したことにする」
+    cropImage: (src, _bbox, out) => {
+      mkdirSync(dirname(out), { recursive: true });
+      copyFileSync(src, out);
+    },
   });
   return { dir, core, api: createApi(core), fake };
+}
+
+/** 中身は何でもよい、PNG の形をしたダミー。 */
+export function fakePng(size = 200): Uint8Array {
+  const b = new Uint8Array(size);
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  return b;
+}
+
+/** ダミーのページ画像で、資料を1つ取り込んだことにする。 */
+export function importFake(t: TestCore, projectId: string, subjectId: string, pages: number, kind: SourceKind = 'past_exam', title = 'ダミー資料', testId?: string): string {
+  const meta = t.api.importBegin(projectId, subjectId, { kind, title, fileName: 'dummy.pdf', testId: testId ?? null });
+  for (let n = 1; n <= pages; n++) t.api.importPage(projectId, subjectId, meta.id, n, fakePng(), n === 1 ? '第1問' : undefined);
+  t.api.importFinish(projectId, subjectId, meta.id, pages);
+  return meta.id;
 }
 
 /** ジョブが終わるまで待ち、完了していなければテストを失敗させる。 */

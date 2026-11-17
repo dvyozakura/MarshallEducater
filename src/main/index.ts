@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, net, protocol } from 'electron';
-import { join, normalize, sep } from 'node:path';
+import { app, BrowserWindow, ipcMain, nativeImage, net, protocol } from 'electron';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppCore } from '../core/app';
 import { createApi } from '../core/api';
@@ -73,6 +74,17 @@ void app.whenReady().then(() => {
     userDataDir: app.getPath('userData'),
     defaultDataDir: join(app.getPath('documents'), 'MarshallEducaterData'),
     envDataDir: process.env.ME_DATA_DIR || undefined,
+    cropImage: (srcPng, bbox, outPng) => {
+      const img = nativeImage.createFromPath(srcPng);
+      const { width, height } = img.getSize();
+      if (!width || !height) throw new Error('ページ画像を開けません');
+      const x = Math.min(width - 1, Math.max(0, Math.round(bbox.x * width)));
+      const y = Math.min(height - 1, Math.max(0, Math.round(bbox.y * height)));
+      const w = Math.max(1, Math.min(width - x, Math.round(bbox.w * width)));
+      const h = Math.max(1, Math.min(height - y, Math.round(bbox.h * height)));
+      mkdirSync(dirname(outPng), { recursive: true });
+      writeFileSync(outPng, img.crop({ x, y, width: w, height: h }).toPNG());
+    },
   });
   const api = createApi(core) as Record<string, (...args: unknown[]) => unknown>;
 

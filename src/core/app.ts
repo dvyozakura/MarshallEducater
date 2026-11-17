@@ -17,7 +17,12 @@ export interface CoreOptions {
   envDataDir?: string;
   /** 子プロセスに足す環境変数(単体テストで偽 Claude を指定する)。 */
   extraEnv?: Record<string, string>;
+  /** 画像の一部を切り出して PNG で保存する(Electron の機能で行うので、外から渡す)。 */
+  cropImage?: CropImage;
 }
+
+/** bbox はページの左上を (0,0)、右下を (1,1) とした割合。 */
+export type CropImage = (srcPng: string, bbox: { x: number; y: number; w: number; h: number }, outPng: string) => void;
 
 /** アプリの中心。設定・データの場所・ジョブの列・1日の上限をまとめて持つ。Electron には依存しない。 */
 export class AppCore {
@@ -50,6 +55,10 @@ export class AppCore {
       if ((e as { kind?: string }).kind !== 'missing') this.settingsProblem = (e as Error).message;
       return defaults;
     }
+  }
+
+  get cropImage(): CropImage | undefined {
+    return this.opts.cropImage;
   }
 
   getSettings(): AppSettings {
