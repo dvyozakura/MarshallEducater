@@ -56,4 +56,13 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - ジョブはメモリ上だけで持つ(アプリを閉じると一覧は消える。結果はファイルに残っているので困らない)。暫定。
 - 偽 Claude: `Tools/fake-claude/fake-claude.mjs`。`ME_FAKE_CLAUDE=1` のとき、アプリは自分自身の実行ファイル(Electron なら `ELECTRON_RUN_AS_NODE=1`)でこのスクリプトを動かす。振る舞いは `ME_FAKE_MODE`(全体)か `ME_FAKE_CONTROL`(JSON ファイル。種類ごと・回数ごと)で切り替える。モード: ok / broken / invalid / nofile / slow / fail / not_logged_in / usage_limit / network、制御ファイルの `notFound: true` で「claude が無い」。受けた呼び出しは `<制御ファイル>.calls.jsonl` に記録され、テストがプロンプトの中身を確かめられる。
 
+## データの型と保存(項目4)
+- 型は `src/shared/schema.ts` に zod でまとめる(ファイルの形と、Claude の出力の形の両方)。ファイルの種類の一覧は `src/core/store.ts` の `Files`、置き場所は `src/core/paths.ts`。
+- 版番号: すべての JSON ファイルの先頭階層に `version`(いまは全種類 1)。読み込み時に、古い版は `migrations` で1つずつ直し、直した内容で書き戻す(元は `<ファイル>.v<版>.bak`)。アプリより新しい版は読まずにエラー(書き換えない)。版番号が無いものは版 0 とみなす。
+- 壊れたファイルは消さずに残し、種類(壊れている/形式違い/新しい版/古すぎる版)を分けて日本語で伝える。
+- 保存は「一時ファイル(`<名前>.tmp-<pid>-<乱数>`)に書いて fsync → rename で置き換え」。Windows で rename が一時的に失敗(EPERM/EBUSY)したら少し待って数回やり直す。残った一時ファイルは起動時に掃除する(1分以上前のものだけ)。
+- フォルダ名: プロジェクト ID・科目 ID は名前からファイル名に使えない文字を除いたもの(人がフォルダを見て分かるように)。同名があれば `-2` などを付ける。名前を後から変えてもフォルダ名(ID)は変えない。
+- CLAUDE.md の構成に足したファイル(細部): 資料ごとの `source.json`(種類・題名・状態)、`extracted.original.json`(Claude が最初に読んだまま。補正率の計算用)、`figures/`(切り出した図)、科目ごとの `review.json`(復習の予定)、テストごとの `explanations.json`・`booklet.pdf`・`answer_sheet.pdf`、プロジェクト直下の `.me/io/`(受け渡しの一時置き場)、データフォルダ直下の `usage.json`。紙の答案 `tests/<ID>/submission/` は資料と同じ構成(original.pdf、pages/、extracted.json、corrections.json)。
+- 難易度の設定は2つに分けた: 試験の型(共通テスト/国公立二次/私大)と、目標の高さ(合格最低点をねらう/合格者平均をねらう/上位での合格をねらう)。暫定。
+
 <!-- END -->
