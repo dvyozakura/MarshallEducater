@@ -3,6 +3,7 @@ import { daysLeftLabel, formatDateJa } from '../../shared/dates';
 import { EXAM_TYPE_LABEL, TARGET_LEVEL_LABEL, type Project } from '../../shared/schema';
 import { api, errorMessage } from '../api';
 import { ErrorBox, Section } from '../components';
+import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 
 export function Dashboard({ projectId }: { projectId: string }) {
@@ -10,6 +11,8 @@ export function Dashboard({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<Project | null>(null);
   const [today, setToday] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const { jobs } = useJobs();
+  const activeJobs = jobs.filter((j) => j.projectId === projectId && (j.status === 'running' || j.status === 'queued'));
 
   useEffect(() => {
     void (async () => {
@@ -44,6 +47,14 @@ export function Dashboard({ projectId }: { projectId: string }) {
           </button>
         </div>
       </div>
+
+      {activeJobs.length > 0 && (
+        <Section title="実行中のジョブ" testId="dashboard-jobs">
+          {activeJobs.map((j) => (
+            <JobRow key={j.id} job={j} />
+          ))}
+        </Section>
+      )}
 
       <Section title="科目" testId="subjects-section">
         <div className="cards">

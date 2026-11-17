@@ -549,3 +549,5 @@ table.grid th.num {
 .unit-line.off .unit-name { color: var(--muted); text-decoration: line-through; }
 .unit-line.depth-1 .unit-name { font-weight: 700; }
 .unit-name { width: 320px; }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.preview { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: #fcfcfe; min-height: 60px; }

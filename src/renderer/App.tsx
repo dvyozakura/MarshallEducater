@@ -3,7 +3,9 @@ import { JobBar, JobsProvider } from './jobs';
 import { NavContext, routeProjectId, type Nav, type Route } from './nav';
 import { Dashboard } from './screens/Dashboard';
 import { Home } from './screens/Home';
+import { Import } from './screens/Import';
 import { Jobs } from './screens/Jobs';
+import { Plan } from './screens/Plan';
 import { ProjectForm } from './screens/ProjectForm';
 import { Settings } from './screens/Settings';
 import { Subject } from './screens/Subject';
@@ -20,6 +22,10 @@ function Screen({ route }: { route: Route }) {
       return <Dashboard projectId={route.projectId} />;
     case 'subject':
       return <Subject projectId={route.projectId} subjectId={route.subjectId} tab={route.tab} />;
+    case 'plan':
+      return <Plan projectId={route.projectId} />;
+    case 'import':
+      return <Import projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
     case 'jobs':
       return <Jobs />;
     case 'settings':

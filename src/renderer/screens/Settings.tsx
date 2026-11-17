@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppSettings } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Section } from '../components';
+import { ErrorBox, Md, Section } from '../components';
 import { JobRow, useJobRunner } from '../jobs';
 
 type Info = Awaited<ReturnType<typeof api.appInfo>>;
@@ -12,6 +12,7 @@ export function Settings() {
   const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [mathSample, setMathSample] = useState('2次方程式 $ax^2+bx+c=0$ の解は\n\n$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$');
 
   const load = async () => {
     try {
@@ -124,6 +125,14 @@ export function Settings() {
           </div>
         )}
         <ErrorBox message={ping.startError} />
+      </Section>
+
+      <Section title="数式の表示の確認">
+        <div className="hint">数式は LaTeX で書きます。文中は $...$、独立した式は $$...$$ です。下で試せます。</div>
+        <div className="split">
+          <textarea data-testid="math-input" rows={4} value={mathSample} onChange={(e) => setMathSample(e.target.value)} />
+          <Md text={mathSample} testId="math-preview" className="preview" />
+        </div>
       </Section>
     </div>
   );
