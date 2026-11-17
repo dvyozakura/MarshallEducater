@@ -44,3 +44,16 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - 未ログイン: ドキュメントに決まった文言は無い。`Not logged in` / `Please run /login` / `Invalid API key` / `authentication` を含むかで判定する(実物を確認できていないので QUESTIONS.md に記載)。
 - 通信失敗: `ECONNRESET` / `ENOTFOUND` / `network` / `fetch failed` / `API Error` / `overloaded` などを含むか。
 - どれでもなければ「その他の失敗」として、出力の先頭を画面に出す。
+
+## Claude 呼び出し層とジョブ(項目3)
+- 構成: `src/core/claude/runner.ts`(子プロセス1回ぶん)→ `task.ts`(入出力ファイル・型検証・やり直し・記録)→ `src/core/jobs.ts`(ジョブの列)。`src/core/` は Electron に依存させず、Vitest から直接テストする。
+- 受け渡しの置き場所: プロジェクト内 `.me/io/<呼び出しID>/input.json`・`output.json`。成功したら消す(内容は logs に残る)。
+- プロンプトの約束: 本文(`src/prompts/<種類>.md`)の後ろに共通の `_common.md` を付ける。そこに `ME_PROMPT_KIND:` `ME_INPUT_FILE:` `ME_OUTPUT_FILE:` の3行と、型(zod)から作った JSON Schema を入れる。やり直しのときは `_retry.md`(前回のエラー内容)を足す。
+- やり直しは「出力ファイルが無い・JSON として読めない・型に合わない・追加の検査に落ちた」ときだけ(最大2回)。claude 自体の失敗(未ログイン・上限・時間切れ・取り消しなど)はやり直さず、すぐ失敗にする。
+- 記録: 呼び出し1回ごとに `logs/<呼び出しID>_<種類>_<何回目>.json`(プロンプト全文・所要時間・終了コード・結果・検証エラー)。
+- 1日の上限: データフォルダ直下の `usage.json`(日付と回数)で数える。やり直しも1回と数える。端末の日付が変わると 0 に戻る。
+- 1回の呼び出しの制限時間: 既定 15 分(暫定、設定で変更可)。時間切れ・取り消しのときは Windows では `taskkill /T /F` で子プロセスごと止める。
+- ジョブはメモリ上だけで持つ(アプリを閉じると一覧は消える。結果はファイルに残っているので困らない)。暫定。
+- 偽 Claude: `Tools/fake-claude/fake-claude.mjs`。`ME_FAKE_CLAUDE=1` のとき、アプリは自分自身の実行ファイル(Electron なら `ELECTRON_RUN_AS_NODE=1`)でこのスクリプトを動かす。振る舞いは `ME_FAKE_MODE`(全体)か `ME_FAKE_CONTROL`(JSON ファイル。種類ごと・回数ごと)で切り替える。モード: ok / broken / invalid / nofile / slow / fail / not_logged_in / usage_limit / network、制御ファイルの `notFound: true` で「claude が無い」。受けた呼び出しは `<制御ファイル>.calls.jsonl` に記録され、テストがプロンプトの中身を確かめられる。
+
+<!-- END -->

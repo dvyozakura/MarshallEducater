@@ -1,1 +1,1 @@
-{"phase":"夜間セッション1","done":2,"total":22,"current":"3. Claude 呼び出し層とジョブの列","detail":"呼び出し層・偽 Claude・ジョブの列を実装中"}
+{"phase":"夜間セッション1","done":3,"total":22,"current":"4. データの型と保存","detail":"型(zod)と安全な保存を実装中"}
