@@ -9,4 +9,9 @@
 - Vitest(tests/unit)と Playwright(tests/e2e、Electron 起動)の見本テストが通る。
 - 環境の点検結果(`./Tools/setup.sh --check-only`):
   - node v24.20.0 / npm 11.19.0 / git 2.56.0.windows.4 / claude 2.1.316 (Claude Code) … すべてあり。不足なし。
-- 気づき: この環境の npm は導入スクリプトを既定で走らせないため、Electron 本体が入らない。`setup.sh` で `node node_modules/electron/install.js` を補うようにした。
+
+### 2. Claude Code の呼び出し方を確認(完了)
+- `claude --help` と公式ドキュメントを確認し、DECISIONS.md にまとめた。本物の呼び出しは 2 回(ファイル書き出し、`--resume` での続き)。どちらも成功。
+
+### 1 の気づき
+- この環境の npm は導入スクリプトを既定で走らせないため、Electron 本体が入らない。`setup.sh` で `node node_modules/electron/install.js` を補うようにした。

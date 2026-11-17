@@ -1,1 +1,1 @@
-{"phase":"夜間セッション1","done":1,"total":22,"current":"2. Claude Code の呼び出し方を確認する","detail":"claude --help と公式ドキュメントを確認中"}
+{"phase":"夜間セッション1","done":2,"total":22,"current":"3. Claude 呼び出し層とジョブの列","detail":"呼び出し層・偽 Claude・ジョブの列を実装中"}
