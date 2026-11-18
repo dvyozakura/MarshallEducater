@@ -1,8 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import type { Project } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { Empty, ErrorBox } from '../components';
+import { ErrorBox } from '../components';
 import { useNav } from '../nav';
+import { ChatsTab } from './subject/ChatsTab';
+import { NotesTab } from './subject/NotesTab';
 import { SourcesTab } from './subject/SourcesTab';
 import { TestsTab } from './subject/TestsTab';
 import { TrendTab } from './subject/TrendTab';
@@ -19,10 +21,6 @@ export const SUBJECT_TABS = [
   { id: 'units', label: '単元' },
 ] as const;
 export type SubjectTabId = (typeof SUBJECT_TABS)[number]['id'];
-
-function Placeholder({ children }: { children: ReactNode }) {
-  return <Empty>{children}</Empty>;
-}
 
 export function Subject({ projectId, subjectId, tab }: { projectId: string; subjectId: string; tab?: string }) {
   const nav = useNav();
@@ -58,8 +56,8 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
         {current === 'sources' && <SourcesTab {...props} />}
         {current === 'weakness' && <WeaknessTab {...props} />}
         {current === 'trend' && <TrendTab {...props} />}
-        {current === 'notes' && <Placeholder>授業ノートは、ここに出ます。</Placeholder>}
-        {current === 'chats' && <Placeholder>質問のやりとりは、ここに出ます。</Placeholder>}
+        {current === 'notes' && <NotesTab {...props} />}
+        {current === 'chats' && <ChatsTab {...props} />}
         {current === 'units' && <UnitsTab {...props} />}
       </div>
     </div>

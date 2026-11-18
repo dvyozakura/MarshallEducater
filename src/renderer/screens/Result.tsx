@@ -63,6 +63,8 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
   const { jobs } = useJobs();
   const mine = jobs.filter((j) => (j.params as { testId?: string } | null)?.testId === testId);
   const gradeJob = mine.filter((j) => j.kind === 'grade').at(-1) ?? null;
+  const explainJob = mine.filter((j) => j.kind === 'explain').at(-1) ?? null;
+  const [pdf, setPdf] = useState<string | null>(null);
   const finished = mine.filter((j) => j.status === 'done').length;
 
   const load = useCallback(() => api.getResultView(projectId, subjectId, testId).then(setView, (e) => setError(errorMessage(e))), [projectId, subjectId, testId]);
@@ -71,7 +73,16 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
   }, [load, finished]);
 
   if (!view) return <div className="page"><ErrorBox message={error} />{!error && '読み込み中…'}</div>;
-  const { test, reading, grading, key, totals } = view;
+  const { test, reading, grading, key, totals, explanations } = view;
+  const explained = new Map((explanations?.items ?? []).map((e) => [e.problemId, e]));
+  const unexplained = (grading?.items ?? []).filter((i) => (i.override ? i.override.score : i.score) < i.max && !explained.has(i.problemId)).length;
+  const explainBusy = !!explainJob && (explainJob.status === 'queued' || explainJob.status === 'running');
+  const explain = () => api.startExplain(projectId, subjectId, testId).catch((e) => setError(errorMessage(e)));
+  const exportPdf = () =>
+    api.exportTestPdf(projectId, subjectId, testId, 'explanations').then(
+      (r) => setPdf(r.path),
+      (e) => setError(errorMessage(e)),
+    );
   const grade = () => api.startGrade(projectId, subjectId, testId).catch((e) => setError(errorMessage(e)));
   const grading_busy = !!gradeJob && (gradeJob.status === 'queued' || gradeJob.status === 'running');
   const answerOf = (id: string) => reading?.answers.find((a) => a.problemId === id)?.answer ?? '';
@@ -153,8 +164,39 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
             </div>
           </div>
 
+          {(unexplained > 0 || explained.size > 0) && (
+            <Section title="解説" testId="explain-section">
+              {unexplained > 0 && !explainBusy && explainJob?.status !== 'failed' && (
+                <div className="row">
+                  <span data-testid="explain-missing">間違えた問題のうち {unexplained} 問に、まだ解説がありません。</span>
+                  <button className="primary small" data-testid="explain-start" onClick={() => void explain()}>
+                    Claude に解説を書かせる
+                  </button>
+                </div>
+              )}
+              {unexplained > 0 && explainJob && explainJob.status !== 'done' && <JobRow job={explainJob} onRetry={() => void explain()} />}
+              {unexplained === 0 && (
+                <div className="row">
+                  <span data-testid="explain-ready">間違えた {explained.size} 問の解説があります(各設問の下)。</span>
+                  <button className="small" data-testid="export-explanations" onClick={() => void exportPdf()}>
+                    解説を PDF に
+                  </button>
+                  {pdf && (
+                    <span className="hint" data-testid="export-path">
+                      保存しました: {pdf}{' '}
+                      <button className="link" onClick={() => void api.revealFile(pdf)}>
+                        フォルダで表示
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+            </Section>
+          )}
+
           {test.problems.map((p) => {
             const it = grading.items.find((i) => i.problemId === p.id);
+            const ex = explained.get(p.id);
             if (!it) return null;
             const s = it.override ? it.override.score : it.score;
             const k = key?.items.find((x) => x.problemId === p.id);
@@ -211,6 +253,21 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
                     <strong>なぜ間違えたか</strong> {it.comment}
                   </div>
                 )}
+                {ex && s < it.max && (
+                  <div className="explanation" data-testid="item-explanation">
+                    <h3>考え方</h3>
+                    <Md text={ex.thinking} />
+                    <h3>解き方</h3>
+                    <Md text={ex.solution} />
+                    <h3>同じミスを防ぐ一言</h3>
+                    <Md text={ex.tip} testId="item-tip" />
+                  </div>
+                )}
+                <div className="row">
+                  <button className="small" data-testid="ask-open" onClick={() => nav.go({ screen: 'chat', projectId, subjectId, testId, problemId: p.id })}>
+                    この問題について質問する
+                  </button>
+                </div>
                 <OverrideForm key={`${it.override?.at ?? ''}`} item={it} onSave={(score, note) => override(p.id, score, note)} />
               </section>
             );

@@ -32,16 +32,14 @@ describe('採点(偽 Claude)', () => {
     expect(c.unitName).toBe(test.problems[2].unitName);
     // 採点が済んだら、正解を見られる
     expect(v.key!.items).toHaveLength(4);
-    const call = t.fake.calls().at(-1)!;
-    expect(call.kind).toBe('grade');
+    const call = t.fake.calls().filter((c) => c.kind === 'grade').at(-1)!;
     expect(call.prompt).toContain(test.title);
   });
 
   it('全問が未解答なら Claude を呼ばない。制限時間を使い切っていれば「時間切れ」', async () => {
     const { t, ids } = await setupTest();
-    const before = t.fake.calls().length;
     const v = await submitAndGrade(t, ids, {}, 40 * 60);
-    expect(t.fake.calls().length).toBe(before);
+    expect(t.fake.calls().filter((c) => c.kind === 'grade')).toHaveLength(0); // 採点では呼ばない(解説づくりは別)
     expect(v.grading!.items.every((i) => i.mistake === 'timeout' && i.score === 0)).toBe(true);
     expect(v.totals).toEqual({ score: 0, max: 50 });
   });

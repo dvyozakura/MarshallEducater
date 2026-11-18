@@ -274,7 +274,69 @@ function plan({ input, mode }) {
   };
 }
 
+/** 解説: 設問ごとに、考え方・解き方・一言。モード missing は最後の設問を落とす(やり直しの確認用)。 */
+function explain({ input, mode }) {
+  const items = input.items.map((it) => {
+    const m = it.body.match(/\$(\d+) \+ (\d+)\$/);
+    const sum = sumOf(it.body);
+    return {
+      problemId: it.problemId,
+      thinking: `${it.unitName} の問題です。足し算は、位をそろえて一の位から順に考えます。`,
+      solution: m ? `$${m[1]} + ${m[2]} = ${sum}$ なので、正解は ${it.key} です。${it.answer ? `あなたの答案「${it.answer.slice(0, 20)}」は、ここが違います。` : '未解答でした。まず式を書き出しましょう。'}` : `正解は ${it.key} です。`,
+      tip: it.mistake === 'blank' || it.mistake === 'timeout' ? '分からなくても、最初の一歩(式を書く)だけは書きましょう。' : '計算のあとに、逆算(引き算)で確かめましょう。',
+    };
+  });
+  if (mode === 'missing') items.pop();
+  return { items };
+}
+
+/** 授業ノート: 要点・例題・よくある誤り・確認問題。苦手の記録や前のノートがあれば、その印を入れる。 */
+function note({ input }) {
+  return {
+    markdown: [
+      `# ${input.unit.name}`,
+      '',
+      `${input.project.university} ${input.project.faculty} 向け${input.previous ? '(作り直し)' : ''}。`,
+      '',
+      '## 要点',
+      '- 三平方の定理: $a^2 + b^2 = c^2$',
+      input.trend ? '- 志望校の傾向に合わせた補足。' : '- 基本事項を順に確かめる。',
+      '',
+      '## 例題',
+      '**問題** $3^2 + 4^2$ を計算せよ。',
+      '',
+      '**考え方** 2乗してから足す。',
+      '',
+      '**解答** $$3^2 + 4^2 = 25$$',
+      '',
+      '## よくある誤り',
+      input.weakness ? `- この単元の習熟度は ${input.weakness.mastery}。間違えた問題 ${input.mistakes.length} 件を踏まえた注意。` : '- 2乗と2倍を取り違える。',
+      '',
+      '## 確認問題',
+      '1. $5^2 + 12^2$ を計算せよ。(答え: $169$)',
+    ].join('\n'),
+  };
+}
+
+/** 質問: 質問の文と、渡された文脈(問題・答案・採点・解説・ノート・苦手マップ・これまでのやりとり)が分かる答えを返す。 */
+function chat({ input }) {
+  const c = input.context;
+  const parts = [`「${input.question}」への答えです。`];
+  if (c.problem) parts.push(`問題: ${c.problem.number}(${c.problem.key ? `正解は ${c.problem.key}` : '正解はまだ見せません'})。`);
+  if (c.answer !== null) parts.push(`あなたの答案: ${c.answer || '未解答'}。`);
+  if (c.grading) parts.push(`採点: ${c.grading.score} / ${c.grading.max}${c.grading.mistake ? `(${c.grading.mistake})` : ''}。`);
+  if (c.explanation) parts.push('解説を踏まえています。');
+  if (c.note) parts.push(`授業ノート「${c.note.unitName}」を踏まえています。`);
+  parts.push(`苦手マップ: 弱い単元 ${input.weakness.units.length} 件。`);
+  parts.push(`これまでのやりとり: ${input.history.length} 件。`);
+  parts.push('式で書くと $x^2 \\geq 0$ です。');
+  return { answer: parts.join('\n\n') };
+}
+
 const responders = {
+  explain,
+  note,
+  chat,
   plan,
   trend,
   grade,

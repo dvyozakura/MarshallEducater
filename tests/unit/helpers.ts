@@ -162,7 +162,10 @@ export async function setupTest(control: Record<string, unknown> = {}) {
 
 export async function submitAndGrade(t: TestCore, ids: readonly [string, string, string], answers: Record<string, string>, elapsedSec: number | null = 600) {
   t.api.submitAnswers(...ids, { answers, elapsedSec });
-  await done(t, t.api.startGrade(...ids));
+  const job = await done(t, t.api.startGrade(...ids));
+  // 採点のあとに続けて並ぶ、解説づくりも待つ(失敗してもよい。解説そのものの確認は teach.test.ts)
+  const explainJobId = (job.result as { explainJobId?: string | null } | null)?.explainJobId;
+  if (explainJobId) await settled(t, t.core.jobs.get(explainJobId)!);
   return t.api.getResultView(...ids);
 }
 

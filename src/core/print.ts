@@ -2,9 +2,12 @@
 import { existsSync } from 'node:fs';
 import { choiceMark } from '../shared/labels';
 import { renderMarkdown, svgToImgHtml } from '../shared/mdmath';
-import { DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, type Test } from '../shared/schema';
+import { DIFFICULTY_LABEL, MISTAKE_LABEL, PROBLEM_FORMAT_LABEL, type AnswerKey, type Explanations, type Grading, type Reading, type Test } from '../shared/schema';
+import { getReading } from './answers';
 import type { AppCore } from './app';
+import { effectiveScore, getAnswerKey, getGrading } from './grading';
 import { getProject, getSubject } from './projects';
+import { Files, readData } from './store';
 import { getTest, testPaths } from './tests';
 
 /** main 側が、KaTeX の CSS の場所に置き換える目印。 */
@@ -87,7 +90,44 @@ export function answerSheetHtml(test: Test, subjectName: string): string {
   );
 }
 
-export type TestPdfKind = 'booklet' | 'answer_sheet';
+/** 解説(間違えた問題ごとに、問題・自分の答案・正解・考え方・解き方・一言)。 */
+export function explanationsHtml(test: Test, subjectName: string, grading: Grading, key: AnswerKey, reading: Reading | null, ex: Explanations): string {
+  const label = (p: Test['problems'][number], answer: string) => {
+    if (!answer.trim()) return '(未解答)';
+    const n = Number(answer.normalize('NFKC').match(/\d+/)?.[0] ?? NaN);
+    return p.format === 'choice' && Number.isFinite(n) && p.choices[n - 1] !== undefined ? `${choiceMark(n - 1)} ${p.choices[n - 1]}` : answer;
+  };
+  const total = grading.items.reduce((n, i) => n + effectiveScore(i), 0);
+  const max = grading.items.reduce((n, i) => n + i.max, 0);
+  const secs = test.problems
+    .map((p) => {
+      const e = ex.items.find((i) => i.problemId === p.id);
+      const g = grading.items.find((i) => i.problemId === p.id);
+      if (!e || !g) return '';
+      const k = key.items.find((i) => i.problemId === p.id);
+      const answer = reading?.answers.find((a) => a.problemId === p.id)?.answer ?? '';
+      return `<div class="sec"><h2>${esc(p.number)}(${esc(p.unitName)}・${effectiveScore(g)} / ${g.max} 点${g.mistake ? `・${MISTAKE_LABEL[g.mistake]}` : ''})</h2>
+      ${renderMarkdown(p.body)}
+      ${p.figureSvg ? svgToImgHtml(p.figureSvg) : ''}
+      ${p.choices.length ? `<ul class="choices">${p.choices.map((c, i) => `<li><span>${choiceMark(i)}</span><span>${renderMarkdown(c)}</span></li>`).join('')}</ul>` : ''}
+      <h3>あなたの答案</h3>${renderMarkdown(label(p, answer))}
+      <h3>正解</h3>${renderMarkdown(label(p, k?.answer ?? ''))}
+      <h3>考え方</h3>${renderMarkdown(e.thinking)}
+      <h3>解き方</h3>${renderMarkdown(e.solution)}
+      <h3>同じミスを防ぐ一言</h3>${renderMarkdown(e.tip)}
+      </div>`;
+    })
+    .join('\n');
+  return htmlPage(
+    `${test.title} 解説`,
+    `<h1>${esc(test.title)} 解説</h1>
+    <div class="meta">科目: ${esc(subjectName)} / 得点: ${total} / ${max} 点 / 解説のある設問: ${ex.items.length} 問</div>
+    ${secs}
+    <div class="footer">MarshallEducater で作成(解説は Claude が書いたものです)</div>`,
+  );
+}
+
+export type TestPdfKind = 'booklet' | 'answer_sheet' | 'explanations';
 
 /** 問題冊子・解答用紙を PDF にして、テストのフォルダに保存する。保存した場所を返す。 */
 export async function exportTestPdf(core: AppCore, projectId: string, subjectId: string, testId: string, which: TestPdfKind): Promise<{ path: string }> {
@@ -95,8 +135,18 @@ export async function exportTestPdf(core: AppCore, projectId: string, subjectId:
   const test = getTest(core, projectId, subjectId, testId);
   const subjectName = getSubject(getProject(core, projectId), subjectId).name;
   const tp = testPaths(core, projectId, subjectId, testId);
-  const out = which === 'booklet' ? tp.bookletPdf : tp.answerSheetPdf;
-  await core.printPdf(which === 'booklet' ? bookletHtml(test, subjectName) : answerSheetHtml(test, subjectName), out);
+  let html: string;
+  let out: string;
+  if (which === 'explanations') {
+    const grading = getGrading(core, projectId, subjectId, testId);
+    if (!grading || !existsSync(tp.explanationsJson)) throw new Error('解説がまだありません。採点のあとに、解説を作ってください。');
+    html = explanationsHtml(test, subjectName, grading, getAnswerKey(core, projectId, subjectId, testId), getReading(core, projectId, subjectId, testId), readData(tp.explanationsJson, Files.explanations));
+    out = tp.explanationsPdf;
+  } else {
+    html = which === 'booklet' ? bookletHtml(test, subjectName) : answerSheetHtml(test, subjectName);
+    out = which === 'booklet' ? tp.bookletPdf : tp.answerSheetPdf;
+  }
+  await core.printPdf(html, out);
   if (!existsSync(out)) throw new Error('PDF を保存できませんでした。');
   return { path: out };
 }

@@ -1,6 +1,6 @@
 // 採点。確定した答案を、解答・採点基準に照らして Claude が採点する。ユーザーは結果を上書きでき、上書きは記録する。
 import { existsSync } from 'node:fs';
-import { FORMAT_VERSION, GradeOutputSchema, type AnswerKey, type GradeItem, type Grading, type MistakeType, type Reading, type Test } from '../shared/schema';
+import { FORMAT_VERSION, GradeOutputSchema, type AnswerKey, type Explanations, type GradeItem, type Grading, type MistakeType, type Reading, type Test } from '../shared/schema';
 import { requireConfirmedReading } from './answers';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
@@ -154,6 +154,8 @@ export interface ResultView {
   /** 正解と解き方。採点が済むまでは見せない。 */
   key: AnswerKey | null;
   totals: { score: number; max: number } | null;
+  /** 間違えた問題の解説(まだ無ければ null)。 */
+  explanations: Explanations | null;
 }
 
 export function getResultView(core: AppCore, projectId: string, subjectId: string, testId: string): ResultView {
@@ -161,5 +163,6 @@ export function getResultView(core: AppCore, projectId: string, subjectId: strin
   const tp = testPaths(core, projectId, subjectId, testId);
   const reading = existsSync(tp.readingJson) ? readData(tp.readingJson, Files.reading) : null;
   const grading = getGrading(core, projectId, subjectId, testId);
-  return { test, reading, grading, key: grading ? getAnswerKey(core, projectId, subjectId, testId) : null, totals: grading ? gradingTotals(grading) : null };
+  const explanations = grading && existsSync(tp.explanationsJson) ? readData(tp.explanationsJson, Files.explanations) : null;
+  return { test, reading, grading, key: grading ? getAnswerKey(core, projectId, subjectId, testId) : null, totals: grading ? gradingTotals(grading) : null, explanations };
 }

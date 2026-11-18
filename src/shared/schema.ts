@@ -504,6 +504,14 @@ export const ExplainOutputSchema = z.object({
   ),
 });
 export type ExplainOutput = z.infer<typeof ExplainOutputSchema>;
+/** テストごとの解説(explanations.json)。人が読む版は explanations.md。 */
+export const ExplanationsSchema = z.object({
+  version: z.number().int(),
+  testId: z.string(),
+  updatedAt: z.string(),
+  items: ExplainOutputSchema.shape.items,
+});
+export type Explanations = z.infer<typeof ExplanationsSchema>;
 
 export const NoteOutputSchema = z.object({
   /** 授業ノート(Markdown)。要点・例題・よくある誤りを含む。 */

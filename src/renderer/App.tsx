@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { JobBar, JobsProvider } from './jobs';
 import { NavContext, routeProjectId, type Nav, type Route } from './nav';
+import { Chat } from './screens/Chat';
 import { Correction } from './screens/Correction';
 import { Dashboard } from './screens/Dashboard';
 import { Home } from './screens/Home';
@@ -35,6 +36,8 @@ function Screen({ route }: { route: Route }) {
       return <Take projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
     case 'result':
       return <Result projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
+    case 'chat':
+      return <Chat projectId={route.projectId} subjectId={route.subjectId} chatId={route.chatId} testId={route.testId} problemId={route.problemId} unitId={route.unitId} />;
     case 'jobs':
       return <Jobs />;
     case 'settings':

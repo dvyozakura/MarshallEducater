@@ -3,8 +3,8 @@
 import { resolve, sep } from 'node:path';
 import { todayString } from '../shared/dates';
 import type { JobInfo } from '../shared/jobs';
-import { PingOutputSchema, type AppSettings, type ProjectInput, type UnitNode } from '../shared/schema';
-import { SUBJECT_PRESETS } from '../shared/subjects';
+import { PingOutputSchema, type AppSettings, type ChatContext, type ProjectInput, type UnitNode } from '../shared/schema';
+import { findUnit, SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
 import { getTakeView, saveDraft, submitAnswers } from './answers';
@@ -19,6 +19,7 @@ import { createPlan, getPlanView } from './plan';
 import { exportTestPdf, type TestPdfKind } from './print';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
+import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { getTrendView, updateTrend } from './trend';
 import { adjustUnits, getUnits, saveUnits } from './units';
@@ -102,7 +103,30 @@ export function createApi(core: AppCore) {
     title: (p) => `「${testTitle(p.projectId, p.subjectId, p.testId)}」の採点`,
     run: async (p, ctx) => {
       const grading = await gradeTest(core, p.projectId, p.subjectId, p.testId, ctx);
-      return { testId: p.testId, ...gradingTotals(grading) };
+      // 採点が済んだら、間違えた問題の解説づくりを続けて並べる(解説の失敗で採点を失敗にしない)
+      const explainJobId = missingExplanations(grading, null).length > 0 ? startExplain({ projectId: p.projectId, subjectId: p.subjectId, testId: p.testId, all: true }).id : null;
+      return { testId: p.testId, ...gradingTotals(grading), explainJobId };
+    },
+  });
+
+  const startExplain = defineJob<{ projectId: string; subjectId: string; testId: string; all: boolean }>('explain', {
+    title: (p) => `「${testTitle(p.projectId, p.subjectId, p.testId)}」の解説`,
+    run: async (p, ctx) => {
+      const ex = await explainTest(core, p.projectId, p.subjectId, p.testId, ctx, p.all);
+      return { testId: p.testId, explained: ex.items.length };
+    },
+  });
+
+  const startCreateNote = defineJob<{ projectId: string; subjectId: string; unitId: string }>('create_note', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 授業ノート「${findUnit(getUnits(core, p.projectId, p.subjectId).tree, p.unitId)?.name ?? p.unitId}」`,
+    run: (p, ctx) => createNote(core, p.projectId, p.subjectId, p.unitId, ctx),
+  });
+
+  const startAnswerChat = defineJob<{ projectId: string; subjectId: string; chatId: string }>('chat', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 質問「${getChat(core, p.projectId, p.subjectId, p.chatId).title.slice(0, 20)}」`,
+    run: async (p, ctx) => {
+      const chat = await answerChat(core, p.projectId, p.subjectId, p.chatId, ctx);
+      return { chatId: chat.id, messages: chat.messages.length };
     },
   });
 
@@ -231,6 +255,21 @@ export function createApi(core: AppCore) {
     /** 採点結果の上書き(score が null なら取り消し)。 */
     overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
       overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
+
+    // ───── 解説・授業ノート・質問 ─────
+    /** 解説を作る。all = false なら、まだ解説の無い(間違えた)設問だけ。 */
+    startExplain: (projectId: string, subjectId: string, testId: string, all = false): JobInfo => startExplain({ projectId, subjectId, testId, all }),
+    listNotes: (projectId: string, subjectId: string) => listNotes(core, projectId, subjectId),
+    getNote: (projectId: string, subjectId: string, unitId: string) => getNote(core, projectId, subjectId, unitId),
+    startCreateNote: (projectId: string, subjectId: string, unitId: string): JobInfo => startCreateNote({ projectId, subjectId, unitId }),
+    listChats: (projectId: string, subjectId: string) => listChats(core, projectId, subjectId),
+    getChatView: (projectId: string, subjectId: string, chatId: string) => getChatView(core, projectId, subjectId, chatId),
+    previewChatContext: (projectId: string, subjectId: string, context: Partial<ChatContext>) => previewChatContext(core, projectId, subjectId, context),
+    /** 質問する(chatId が無ければ新しいやりとり)。質問を保存してから、答えのジョブを並べる。 */
+    askQuestion: (projectId: string, subjectId: string, input: { chatId?: string | null; context?: Partial<ChatContext>; question: string }): { chatId: string; job: JobInfo } => {
+      const chat = postQuestion(core, projectId, subjectId, input);
+      return { chatId: chat.id, job: startAnswerChat({ projectId, subjectId, chatId: chat.id }) };
+    },
 
     // ───── 今日の課題 ─────
     getTodayView: (projectId: string) => getTodayView(core, projectId),

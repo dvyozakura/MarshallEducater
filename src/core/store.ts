@@ -138,6 +138,7 @@ export const Files = {
   reading: def('reading.json', S.ReadingSchema),
   draft: def('draft.json', S.DraftSchema),
   grading: def('grading.json', S.GradingSchema),
+  explanations: def('explanations.json', S.ExplanationsSchema),
   trend: def('trend.json', S.TrendSchema),
   plan: def('plan.json', S.PlanSchema),
   review: def('review.json', S.ReviewSchema),
