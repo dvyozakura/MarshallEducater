@@ -61,6 +61,21 @@ test('採点: 提出 → Claude の採点(部分点・ミスの種類・所見)�
   const grading = JSON.parse(readFileSync(join(testsDir, readdirSync(testsDir)[0], 'grading.json'), 'utf8'));
   expect(grading.overrides.map((o: { from: number; to: number }) => `${o.from}->${o.to}`)).toEqual(['10->16', '16->10']);
   expect(grading.items[2].override).toBeNull();
+
+  // 苦手マップ: 単元 × ミスの種類の表と、習熟度
+  await page.getByTestId('result-back').click();
+  await page.getByTestId('tab-weakness').click();
+  await expect(page.getByTestId('weakness-row')).toHaveCount(4);
+  await expect(page.getByTestId('weakness-overall')).toContainText('科目全体の習熟度');
+  const masteries = (await page.getByTestId('weakness-mastery').allTextContents()).map(Number);
+  expect([...masteries].sort((a, b) => a - b)).toEqual(masteries); // 弱い順
+  expect(masteries[0]).toBeLessThan(50);
+  expect(masteries[3]).toBeGreaterThan(50);
+  await expect(page.locator('[data-testid="miss-calculation"].miss')).toHaveCount(2);
+  await expect(page.locator('[data-testid="miss-blank"].miss')).toHaveCount(1);
+  await page.getByTestId('nav-dashboard').click();
+  await expect(page.getByTestId('subject-mastery')).toContainText('習熟度');
+  await expect(page.getByTestId('subject-gap')).toContainText('目標(75)まで');
   await t.app.close();
 });
 

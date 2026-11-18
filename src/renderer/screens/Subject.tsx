@@ -6,6 +6,7 @@ import { useNav } from '../nav';
 import { SourcesTab } from './subject/SourcesTab';
 import { TestsTab } from './subject/TestsTab';
 import { UnitsTab } from './subject/UnitsTab';
+import { WeaknessTab } from './subject/WeaknessTab';
 
 export const SUBJECT_TABS = [
   { id: 'tests', label: 'テストと課題' },
@@ -54,7 +55,7 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
       <div data-testid={`tabpanel-${current}`}>
         {current === 'tests' && <TestsTab {...props} />}
         {current === 'sources' && <SourcesTab {...props} />}
-        {current === 'weakness' && <Placeholder>苦手マップは、採点のあとにここに出ます。</Placeholder>}
+        {current === 'weakness' && <WeaknessTab {...props} />}
         {current === 'trend' && <Placeholder>志望校の傾向は、過去問を確定したあとにここに出ます。</Placeholder>}
         {current === 'notes' && <Placeholder>授業ノートは、ここに出ます。</Placeholder>}
         {current === 'chats' && <Placeholder>質問のやりとりは、ここに出ます。</Placeholder>}

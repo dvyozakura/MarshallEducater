@@ -11,7 +11,7 @@ import { getTakeView, saveDraft, submitAnswers } from './answers';
 import * as C from './correction';
 import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
-import { getResultView, gradeTest, gradingTotals, overrideGrade } from './grading';
+import { getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
 import { exportTestPdf, type TestPdfKind } from './print';
@@ -19,6 +19,7 @@ import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { adjustUnits, getUnits, saveUnits } from './units';
+import { getWeaknessView, TARGET_MASTERY, updateWeaknessFromGrading } from './weakness';
 
 interface JobDef<P> {
   title: (params: P) => string;
@@ -27,6 +28,9 @@ interface JobDef<P> {
 }
 
 export function createApi(core: AppCore) {
+  // 採点(と上書き)のあとに行うこと
+  onGraded(updateWeaknessFromGrading);
+
   // ジョブの種類の登録簿。「もう一度試す」は、同じ種類・同じ引数で作り直す。
   const jobDefs = new Map<string, JobDef<never>>();
   function defineJob<P>(kind: string, def: JobDef<P>): (params: P) => JobInfo {
@@ -191,6 +195,18 @@ export function createApi(core: AppCore) {
     /** 採点結果の上書き(score が null なら取り消し)。 */
     overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
       overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
+
+    // ───── 苦手マップ ─────
+    getWeaknessView: (projectId: string, subjectId: string) => getWeaknessView(core, projectId, subjectId),
+    /** ダッシュボード用: 科目ごとの習熟度と、目標との差。 */
+    subjectSummaries: (projectId: string) => {
+      const project = getProject(core, projectId);
+      const target = TARGET_MASTERY[project.targetLevel];
+      return project.subjects.map((s) => {
+        const w = getWeaknessView(core, projectId, s.id);
+        return { subjectId: s.id, name: s.name, mastery: w.overall, target, gap: w.overall === null ? null : Math.round((target - w.overall) * 10) / 10, testedUnits: w.rows.length, untestedUnits: w.untested, weakest: w.rows.slice(0, 3).map((r) => ({ unitName: r.unitName, mastery: r.mastery })) };
+      });
+    },
 
     // ───── 解く・答案を出す ─────
     getTakeView: (projectId: string, subjectId: string, testId: string) => getTakeView(core, projectId, subjectId, testId),

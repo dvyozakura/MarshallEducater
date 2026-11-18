@@ -596,5 +596,8 @@ table.grid th.num {
 .result-answers { margin: 8px 0; }
 .choices.plain { list-style: none; padding-left: 4px; }
 .choices.plain li { display: flex; gap: 6px; }
+.spark { color: var(--accent); vertical-align: middle; }
+table.grid td.miss { font-weight: 700; color: var(--low); background: #fff5f5; }
+.good-text { color: var(--good); }
 .choices { margin: 4px 0; padding-left: 22px; }
 .choices .md p { margin: 0; }

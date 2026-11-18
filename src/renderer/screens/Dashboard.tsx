@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { daysLeftLabel, formatDateJa } from '../../shared/dates';
 import { EXAM_TYPE_LABEL, TARGET_LEVEL_LABEL, TEST_STATUS_LABEL, type Project, type Test } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Section } from '../components';
+import { ErrorBox, Meter, Section } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { TestRow } from './subject/TestsTab';
 import { useNav } from '../nav';
@@ -15,6 +15,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
   const { jobs } = useJobs();
   const activeJobs = jobs.filter((j) => j.projectId === projectId && (j.status === 'running' || j.status === 'queued'));
   const [tests, setTests] = useState<Record<string, Test[]>>({});
+  const [summaries, setSummaries] = useState<Awaited<ReturnType<typeof api.subjectSummaries>>>([]);
   const finished = jobs.filter((j) => j.projectId === projectId && j.status !== 'running' && j.status !== 'queued').length;
   useEffect(() => {
     if (!project) return;
@@ -22,6 +23,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
       (pairs) => setTests(Object.fromEntries(pairs)),
       (e) => setError(errorMessage(e)),
     );
+    void api.subjectSummaries(projectId).then(setSummaries, () => {});
   }, [project, projectId, finished]);
   const creating = (subjectId: string) => activeJobs.some((j) => j.kind === 'create_diagnostic' && (j.params as { subjectId?: string } | null)?.subjectId === subjectId);
   const diagnosticOf = (subjectId: string) => (tests[subjectId] ?? []).find((t) => t.kind === 'diagnostic') ?? null;
@@ -90,6 +92,19 @@ export function Dashboard({ projectId }: { projectId: string }) {
             return (
               <div key={s.id} className="card clickable" data-testid="subject-card" data-subject={s.name} onClick={() => nav.go({ screen: 'subject', projectId, subjectId: s.id })}>
                 <div className="card-title">{s.name}</div>
+                {(() => {
+                  const m = summaries.find((x) => x.subjectId === s.id);
+                  if (!m || m.mastery === null) return <div className="card-line muted">習熟度: まだ記録なし</div>;
+                  return (
+                    <div className="card-line" data-testid="subject-mastery">
+                      習熟度 <strong>{m.mastery}</strong> <Meter value={m.mastery} />
+                      <div className={m.gap! > 0 ? 'muted' : 'good-text'} data-testid="subject-gap">
+                        {m.gap! > 0 ? `目標(${m.target})まで あと ${m.gap}` : `目標(${m.target})に届いています`}
+                      </div>
+                      {m.weakest.length > 0 && <div className="muted">弱い単元: {m.weakest.map((w) => w.unitName.split(' > ').pop()).join('、')}</div>}
+                    </div>
+                  );
+                })()}
                 <div className="card-line" data-testid="subject-diag">
                   {creating(s.id) ? (
                     <span>
