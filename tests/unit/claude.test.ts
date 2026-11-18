@@ -7,7 +7,7 @@ import { buildPrompt, renderTemplate, schemaDescription } from '../../src/core/c
 import { runClaude } from '../../src/core/claude/runner';
 import { callClaude, ClaudeError } from '../../src/core/claude/task';
 import { JobQueue } from '../../src/core/jobs';
-import { classifyFailureText } from '../../src/shared/failures';
+import { classifyFailureText, failureGuide } from '../../src/shared/failures';
 import { fakeClaude, makeTmpDir } from './helpers';
 
 const PingSchema = z.object({ ok: z.literal(true), message: z.string() });
@@ -133,6 +133,21 @@ describe('Claude の呼び出し(偽 Claude)', () => {
     await expectFailure(ping(dir, fake), 'other');
   });
 
+  it('ログイン切れ(OAuth session expired)の2つの文言を、未ログインと見分けて案内する', async () => {
+    const dir = makeTmpDir();
+    const fake = fakeClaude(dir);
+    for (const mode of ['login_expired', 'login_expired_compact', 'login_expired_text', 'login_expired_exit0']) {
+      fake.set({ default: mode });
+      const before = fake.calls().length;
+      const e = await expectFailure(ping(dir, fake), 'not_logged_in');
+      expect(e.detail, mode).toContain('OAuth session expired');
+      expect(e.message).toContain('ログイン');
+      // やり直しても無駄なので、呼び出しは1回だけ
+      expect(fake.calls().length - before, mode).toBe(1);
+    }
+    expect(failureGuide('not_logged_in')).toContain('ターミナルで claude を起動し、/login でログインし直してください');
+  });
+
   it('本物の claude の場所が間違っていれば not_found', async () => {
     const dir = makeTmpDir();
     const r = await runClaude({
@@ -159,6 +174,8 @@ describe('失敗の文言の見分け', () => {
   it('実際の文言', () => {
     expect(classifyFailureText("You've hit your 5-hour limit · resets 12:30am (Asia/Tokyo)")).toBe('usage_limit');
     expect(classifyFailureText('Invalid API key · Please run /login')).toBe('not_logged_in');
+    expect(classifyFailureText('Failed to authenticate: OAuth session expired and could not be refreshed')).toBe('not_logged_in');
+    expect(classifyFailureText('Prompt is too long · automatic compaction failed: Failed to authenticate: OAuth session expired and could not be refreshed')).toBe('not_logged_in');
     expect(classifyFailureText('API Error: Connection error.')).toBe('network');
     expect(classifyFailureText('何かの失敗')).toBe('other');
   });

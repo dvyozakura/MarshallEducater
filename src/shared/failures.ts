@@ -22,8 +22,8 @@ const GUIDES: Record<FailureKind, { title: string; guide: string; retryable: boo
     retryable: true,
   },
   not_logged_in: {
-    title: 'Claude Code にログインしていません',
-    guide: 'ターミナルで `claude` を起動して `/login` でログインしてから、もう一度試してください。',
+    title: 'Claude Code にログインしていません(またはログインが切れました)',
+    guide: 'ターミナルで claude を起動し、/login でログインし直してください。そのあとで、もう一度試してください。',
     retryable: true,
   },
   usage_limit: {
@@ -73,7 +73,9 @@ export function failureRetryable(kind: FailureKind): boolean {
 export function classifyFailureText(text: string): FailureKind {
   const t = text.toLowerCase();
   if (/hit your .{0,40}limit|usage limit|limit reached|rate limit|out of (extra )?usage/.test(t)) return 'usage_limit';
-  if (/not logged in|please run \/login|invalid api key|authentication[_ ]error|oauth token|unauthorized|\/login/.test(t)) return 'not_logged_in';
+  // ログイン切れの実際の文言(ANSWERS.md 1): "Failed to authenticate: OAuth session expired and could not be refreshed"。
+  // "Prompt is too long · automatic compaction failed: Failed to authenticate: …" の形でも出る。
+  if (/failed to authenticate|oauth session expired|could not be refreshed|not logged in|please run \/login|invalid api key|authentication[_ ]error|oauth token|unauthorized|\/login/.test(t)) return 'not_logged_in';
   if (/econnreset|enotfound|etimedout|econnrefused|network|fetch failed|connection error|api error|overloaded|socket hang up/.test(t)) return 'network';
   return 'other';
 }

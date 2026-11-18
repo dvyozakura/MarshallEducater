@@ -8,7 +8,7 @@
 //     { "default": "ok", "kinds": { "grade": ["broken", "ok"] }, "slowMs": 60000, "options": { ... } }
 //     kinds の配列は「その種類の n 回目の呼び出しのモード」。配列が尽きたら default。
 // モード: ok / broken(壊れた JSON)/ invalid(型に合わない JSON)/ nofile(何も書かない)/
-//         slow(待ってから ok)/ fail(終了コード 1)/ not_logged_in / usage_limit / network
+//         slow(待ってから ok)/ fail(終了コード 1)/ not_logged_in / login_expired(_compact / _text / _exit0)/ usage_limit / network
 //         そのほか、種類ごとの応答が解釈するモード(例: solve_problems の wrong)。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -121,6 +121,16 @@ async function main() {
     process.exit(1);
   }
   if (mode === 'not_logged_in') return finish({ result: 'Not logged in · Please run /login', isError: true, code: 1, sessionId });
+  // ログイン切れ(実際に出た文言。ANSWERS.md 1)。_text は JSON でなく素の文で終わる形、_exit0 は終了コード 0 で返答文にだけ出る形。
+  const EXPIRED = 'Failed to authenticate: OAuth session expired and could not be refreshed';
+  const EXPIRED_COMPACT = 'Prompt is too long · automatic compaction failed: ' + EXPIRED;
+  if (mode === 'login_expired') return finish({ result: EXPIRED, isError: true, code: 1, sessionId });
+  if (mode === 'login_expired_compact') return finish({ result: EXPIRED_COMPACT, isError: true, code: 1, sessionId });
+  if (mode === 'login_expired_text') {
+    process.stdout.write(EXPIRED_COMPACT + '\n', ()=> process.exit(1));
+    return;
+  }
+  if (mode === 'login_expired_exit0') return finish({ result: EXPIRED, sessionId });
   if (mode === 'usage_limit') return finish({ result: "You've hit your 5-hour limit · resets 12:30am (Asia/Tokyo)", isError: true, code: 1, sessionId });
   if (mode === 'network') return finish({ result: 'API Error: Connection error. (fetch failed)', isError: true, code: 1, sessionId });
   if (mode === 'slow') await sleep(control.slowMs ?? 60000);

@@ -191,4 +191,9 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - `@electron/packager` で作る。Electron 本体を取得できないとき(ネットワークなし等)は、`node_modules/electron/dist` を写して `resources/app` にアプリを置く方法に切り替える(実行ファイルのアイコン・版情報は Electron のままになる)。
 - アイコンは未設定(Electron の既定)。コード署名なし。
 
+## セッション2 項目1: ログイン切れの見分け
+- 実際の文言(ANSWERS.md 1): `Failed to authenticate: OAuth session expired and could not be refreshed`。長い会話では `Prompt is too long · automatic compaction failed: ` が前に付く。
+- 判定に足した語: `failed to authenticate` / `oauth session expired` / `could not be refreshed`。使用量上限の判定を先に行う順番は変えていない(上の文言は上限の語を含まない)。
+- この文言がどの経路で出るか(終了コード、JSON の result か素の文か)は確認できていないので、3 通り(JSON+終了コード 1、素の文+終了コード 1、JSON+終了コード 0 で出力ファイルなし)のどれでも未ログインになるようにした。
+
 <!-- END -->

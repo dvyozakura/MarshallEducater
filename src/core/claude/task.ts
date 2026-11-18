@@ -2,7 +2,7 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import type { FailureKind } from '../../shared/failures';
-import { failureTitle } from '../../shared/failures';
+import { classifyFailureText, failureTitle } from '../../shared/failures';
 import { ensureDir, newId, writeFileAtomic } from '../fsutil';
 import type { DailyLimiter } from './limiter';
 import { buildPrompt, type PromptKind } from './prompts';
@@ -138,6 +138,11 @@ export async function callClaude<T>(c: StructuredCall<T>): Promise<StructuredRes
     }
     const rawOutput = existsSync(outputFile) ? readFileSync(outputFile, 'utf8').slice(0, 20000) : null;
     writeLog(c.projectDir, callId, c.kind, attempt, { ...base, outcome: 'invalid_output', validationError: v.error, rawOutput });
+    // 終了コードは成功なのに、返答文が「ログイン切れ・使用量の上限」だけで出力ファイルが無いことがある。やり直しても無駄なので、すぐ失敗にする。
+    if (rawOutput === null && run.resultText && run.resultText.length < 400) {
+      const k = classifyFailureText(run.resultText);
+      if (k === 'not_logged_in' || k === 'usage_limit') throw new ClaudeError(k, run.resultText);
+    }
     retryError = v.error;
   }
   rmSync(ioDir, { recursive: true, force: true });

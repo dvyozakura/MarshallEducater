@@ -1,4 +1,19 @@
-# PROGRESS(夜間セッション1)
+# PROGRESS(夜間セッション2: 体系的な教材と、教材への質問)
+
+(要約と「人が確認すること」は、最後の項目で先頭に書く)
+
+## セッション2の経過
+
+### S2-1. 【バグ】ログイン切れを見分けられない(完了)
+- `Failed to authenticate: OAuth session expired and could not be refreshed` と、`Prompt is too long · automatic compaction failed: Failed to authenticate: …` を「未ログイン」と判定するようにした(`src/shared/failures.ts`)。
+- 案内の文言を「ターミナルで claude を起動し、/login でログインし直してください。」にした。
+- 念のため、終了コードが成功なのに返答文がログイン切れ・使用量上限だけで出力ファイルが無い場合も、やり直さずにすぐその失敗として扱う(`src/core/claude/task.ts`)。
+- 偽 Claude にモード login_expired / login_expired_compact / login_expired_text(JSON でない素の文)/ login_expired_exit0 を足し、4 通りとも未ログインの案内になり、呼び出しが1回で止まることを単体テストで確認。
+- 単体 143 本、自動操作 21 本が通る。
+
+---
+
+# 夜間セッション1 の記録
 
 ## 要約(2026-11-18 18:40 時点。NEXT_SESSION.md の 22 項目すべて完了)
 
