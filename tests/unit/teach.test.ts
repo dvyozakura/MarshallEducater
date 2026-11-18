@@ -151,7 +151,7 @@ describe('質問(偽 Claude)', () => {
     // ファイルに残る(chats/<ID>.json)
     const saved = readData(t.core.paths(p.id).subject(sid).chat(a1.chatId), Files.chat);
     expect(saved.messages).toHaveLength(4);
-    expect(saved.context).toEqual({ testId: ids[2], problemId: 'p02', unitId: null });
+    expect(saved.context).toEqual({ testId: ids[2], problemId: 'p02', unitId: null, chapterUnitId: null, textbook: false });
     expect(t.api.listChats(p.id, sid)).toMatchObject([{ id: a1.chatId, messages: 4, waiting: false }]);
   });
 

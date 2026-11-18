@@ -20,9 +20,9 @@ import { exportTestPdf, exportTextbookPdf, type TestPdfKind } from './print';
 import { getQuality } from './quality';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
-import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
+import { answerChat, createNote, explainTest, findTextbookChat, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
 import { activeChapterJob, CHAPTER_JOB_KIND, getChapterView, getTextbookView, setChapterRead, setChapterUnlearned, syncToc } from './textbook';
-import { buildChapter, deferChapter, planBuildAll, setDeferred, takeDeferredForToday } from './textbook_build';
+import { addSupplement, buildChapter, deferChapter, planBuildAll, setDeferred, takeDeferredForToday } from './textbook_build';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { getTrendView, updateTrend } from './trend';
 import { adjustUnits, getUnits, saveUnits } from './units';
@@ -184,6 +184,11 @@ export function createApi(core: AppCore) {
       }
     },
   });
+  const startSupplementJob = defineJob<{ projectId: string; subjectId: string; unitId: string; chatId: string }>('chapter_supplement', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 教材 ${chapterLabel(p.projectId, p.subjectId, p.unitId)} に質問を反映`,
+    run: (p, ctx) => addSupplement(core, p.projectId, p.subjectId, p.unitId, p.chatId, ctx),
+  });
+
   /** 章を作る(作り直す)。同じ章のジョブがすでに並んでいれば、それを返す(二重に作らない)。 */
   const startCreateChapter = (projectId: string, subjectId: string, unitId: string): JobInfo =>
     activeChapterJob(core, projectId, subjectId, unitId) ?? startCreateChapterJob({ projectId, subjectId, unitId });
@@ -297,7 +302,7 @@ export function createApi(core: AppCore) {
     getChatView: (projectId: string, subjectId: string, chatId: string) => getChatView(core, projectId, subjectId, chatId),
     previewChatContext: (projectId: string, subjectId: string, context: Partial<ChatContext>) => previewChatContext(core, projectId, subjectId, context),
     /** 質問する(chatId が無ければ新しいやりとり)。質問を保存してから、答えのジョブを並べる。 */
-    askQuestion: (projectId: string, subjectId: string, input: { chatId?: string | null; context?: Partial<ChatContext>; question: string }): { chatId: string; job: JobInfo } => {
+    askQuestion: (projectId: string, subjectId: string, input: { chatId?: string | null; context?: Partial<ChatContext>; question: string; quote?: string | null }): { chatId: string; job: JobInfo } => {
       const chat = postQuestion(core, projectId, subjectId, input);
       return { chatId: chat.id, job: startAnswerChat({ projectId, subjectId, chatId: chat.id }) };
     },
@@ -337,6 +342,13 @@ export function createApi(core: AppCore) {
         }
       }
       return jobs;
+    },
+    /** 教材への質問の、いちばん新しいやりとり(chapterUnitId が null なら、科目全体についての質問)。無ければ null。 */
+    findTextbookChat: (projectId: string, subjectId: string, chapterUnitId: string | null) => findTextbookChat(core, projectId, subjectId, { chapterUnitId }),
+    /** 「教材に反映」: 章への質問のやりとりをもとに、その章へ補足を追記する(追記前の版は残す。追記分も点検する)。 */
+    startSupplement: (projectId: string, subjectId: string, unitId: string, chatId: string): JobInfo => {
+      const busy = core.jobs.list().find((j) => j.kind === 'chapter_supplement' && (j.status === 'queued' || j.status === 'running') && (j.params as { chatId?: string }).chatId === chatId);
+      return busy ?? startSupplementJob({ projectId, subjectId, unitId, chatId });
     },
     setChapterRead: (projectId: string, subjectId: string, unitId: string, read: boolean) => setChapterRead(core, projectId, subjectId, unitId, read),
     setChapterUnlearned: (projectId: string, subjectId: string, unitId: string, unlearned: boolean) => setChapterUnlearned(core, projectId, subjectId, unitId, unlearned),

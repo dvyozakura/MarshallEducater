@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChapterView } from '../../core/textbook';
 import { splitFigures } from '../../shared/chapter';
 import { choiceMark } from '../../shared/labels';
@@ -9,6 +9,7 @@ import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 import { PdfButtons } from './subject/TestsTab';
 import { quizLabel } from './subject/TextbookTab';
+import { TextbookChat } from './TextbookChat';
 
 /** 章の本文(文章の途中に、図を置く)。 */
 function Body({ text, figures, testId }: { text: string; figures: ChapterFigure[]; testId?: string }) {
@@ -56,6 +57,10 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
   const [error, setError] = useState<string | null>(null);
   const [pdf, setPdf] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [quote, setQuote] = useState<string | null>(null);
+  const [sel, setSel] = useState<{ text: string; x: number; y: number } | null>(null);
+  const [focusKey, setFocusKey] = useState(0);
+  const bodyRef = useRef<HTMLElement>(null);
   const { jobs } = useJobs();
   const mine = jobs.filter((j) => {
     const p = j.params as { subjectId?: string; unitId?: string } | null;
@@ -78,6 +83,26 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
   const act = (fn: () => Promise<unknown>) => {
     setError(null);
     void fn().then(load, (e) => setError(errorMessage(e)));
+  };
+  // 章が変わったら、選んだ箇所を忘れる
+  useEffect(() => {
+    setQuote(null);
+    setSel(null);
+  }, [unitId]);
+  /** 本文の文章を選んだら、「ここを質問」のボタンを出す。 */
+  const onSelect = () => {
+    const s = window.getSelection();
+    const text = s?.toString().trim() ?? '';
+    if (!s || !text || s.rangeCount === 0 || !bodyRef.current?.contains(s.anchorNode)) return setSel(null);
+    const r = s.getRangeAt(0).getBoundingClientRect();
+    setSel({ text, x: Math.max(8, r.left), y: Math.max(8, r.top - 36) });
+  };
+  const askHere = () => {
+    if (!sel) return;
+    setQuote(sel.text);
+    setSel(null);
+    window.getSelection()?.removeAllRanges();
+    setFocusKey((k) => k + 1);
   };
   const goChapter = (id: string) => nav.go({ screen: 'chapter', projectId, subjectId, unitId: id });
   const toToc = () => nav.go({ screen: 'subject', projectId, subjectId, tab: 'textbook' });
@@ -183,8 +208,8 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
       )}
 
       {ch && (
-        <div className="chapter-layout">
-          <article className="chapter-body" data-testid="chapter-body">
+        <div className="chapter-layout with-chat">
+          <article className="chapter-body" data-testid="chapter-body" ref={bodyRef} onMouseUp={onSelect} onKeyUp={onSelect}>
             <div className="muted" data-testid="chapter-meta">
               第 {ch.chapterVersion} 版({ch.updatedAt.slice(0, 10)})・厚さ: {THICKNESS_LABEL[ch.thickness]}
               {ch.unlearned ? '・未習の単元として作成' : ''}
@@ -306,7 +331,13 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
               </button>
             </div>
           </article>
+          <TextbookChat projectId={projectId} subjectId={subjectId} chapterUnitId={unitId} quote={quote} onClearQuote={() => setQuote(null)} canSupplement focusKey={focusKey} />
         </div>
+      )}
+      {sel && (
+        <button className="primary small select-ask" data-testid="ask-here" style={{ left: sel.x, top: sel.y }} onMouseDown={(e) => e.preventDefault()} onClick={askHere}>
+          ここを質問
+        </button>
       )}
       {!ch && note && (
         <details className="section" data-testid="chapter-note" open>

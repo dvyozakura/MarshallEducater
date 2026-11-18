@@ -630,6 +630,10 @@ export const ChatContextSchema = z.object({
   problemId: z.string().nullable().default(null),
   /** 授業ノートからの質問のとき、その単元 ID。 */
   unitId: z.string().nullable().default(null),
+  /** 教材の章を読む画面からの質問のとき、その章の単元 ID。 */
+  chapterUnitId: z.string().nullable().default(null),
+  /** 「教材」タブからの、章を指定しない科目全体についての質問。 */
+  textbook: z.boolean().default(false),
 });
 export type ChatContext = z.infer<typeof ChatContextSchema>;
 export const ChatSchema = z.object({
@@ -640,7 +644,15 @@ export const ChatSchema = z.object({
   context: ChatContextSchema,
   /** Claude Code の会話 ID(続きの質問で --resume に渡す)。 */
   sessionId: z.string().nullable().default(null),
-  messages: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string(), at: z.string() })),
+  messages: z.array(
+    z.object({
+      role: z.enum(['user', 'assistant']),
+      text: z.string(),
+      at: z.string(),
+      /** 「ここを質問」で選んだ箇所(教材の本文からの引用)。 */
+      quote: z.string().nullable().optional(),
+    }),
+  ),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

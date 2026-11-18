@@ -27,6 +27,7 @@ import type { JobContext } from './jobs';
 import { getProject, getSubject } from './projects';
 import { Files, readData, writeData } from './store';
 import { getTest, listTests, testPaths } from './tests';
+import { getChapter, getTextbookView } from './textbook';
 import { getTrend } from './trend';
 import { getUnits, projectBrief } from './units';
 import { dominantMistake, getWeaknessView } from './weakness';
@@ -318,11 +319,36 @@ function describeContext(core: AppCore, projectId: string, subjectId: string, co
       return { contextLabel: '(もとのテストは、もうありません)', problem: null, testTitle: null };
     }
   }
+  if (context.chapterUnitId) {
+    const row = getTextbookView(core, projectId, subjectId).chapters.find((c) => c.unitId === context.chapterUnitId);
+    const label = row ? `${row.no > 0 ? `第${row.no}章` : ''}「${row.name}」` : `「${context.chapterUnitId}」`;
+    return { contextLabel: `教材 ${label}`, problem: null, testTitle: null };
+  }
+  if (context.textbook) return { contextLabel: '教材(科目全体)', problem: null, testTitle: null };
   if (context.unitId) {
     const unit = flattenUnits(getUnits(core, projectId, subjectId).tree).find((u) => u.id === context.unitId);
     return { contextLabel: `授業ノート「${unit?.name ?? context.unitId}」`, problem: null, testTitle: null };
   }
   return { contextLabel: '科目全般', problem: null, testTitle: null };
+}
+
+function normalizeContext(context: Partial<ChatContext> | undefined): ChatContext {
+  return {
+    testId: context?.testId ?? null,
+    problemId: context?.problemId ?? null,
+    unitId: context?.unitId ?? null,
+    chapterUnitId: context?.chapterUnitId ?? null,
+    textbook: context?.textbook ?? false,
+  };
+}
+
+/**
+ * 教材の質問のやりとり(章ごと、または科目全体)のうち、いちばん新しいもの。無ければ null。
+ * 会話は章ごとに保存し、章を開き直すと続きができる。
+ */
+export function findTextbookChat(core: AppCore, projectId: string, subjectId: string, target: { chapterUnitId: string | null }): ChatView | null {
+  const hit = listChats(core, projectId, subjectId).find((c) => (target.chapterUnitId ? c.context.chapterUnitId === target.chapterUnitId : c.context.textbook && !c.context.chapterUnitId));
+  return hit ? getChatView(core, projectId, subjectId, hit.id) : null;
 }
 
 export function getChatView(core: AppCore, projectId: string, subjectId: string, chatId: string): ChatView {
@@ -332,26 +358,36 @@ export function getChatView(core: AppCore, projectId: string, subjectId: string,
 
 /** 新しい質問の画面用: まだやりとりの無い文脈の説明。 */
 export function previewChatContext(core: AppCore, projectId: string, subjectId: string, context: Partial<ChatContext>): Omit<ChatView, 'chat'> {
-  return describeContext(core, projectId, subjectId, { testId: context.testId ?? null, problemId: context.problemId ?? null, unitId: context.unitId ?? null });
+  return describeContext(core, projectId, subjectId, normalizeContext(context));
 }
+
+/** 「ここを質問」で添える引用の長さの上限(字)。 */
+export const QUOTE_MAX = 1500;
 
 /**
  * 質問を保存する(答えは、このあとのジョブで付く)。chatId が無ければ新しいやりとりを始める。
  * 前の質問に答えが付いていなければ(失敗・取り消し)、その質問を置き換える。
  */
-export function postQuestion(core: AppCore, projectId: string, subjectId: string, input: { chatId?: string | null; context?: Partial<ChatContext>; question: string }): Chat {
+export function postQuestion(
+  core: AppCore,
+  projectId: string,
+  subjectId: string,
+  input: { chatId?: string | null; context?: Partial<ChatContext>; question: string; quote?: string | null },
+): Chat {
   const question = input.question.trim();
   if (!question) throw new Error('質問を書いてください。');
   if (question.length > 4000) throw new Error('質問が長すぎます(4000 字まで)。');
+  const quoted = input.quote?.trim() ? input.quote.trim().slice(0, QUOTE_MAX) : null;
   getSubject(getProject(core, projectId), subjectId);
   const at = new Date().toISOString();
+  const message = { role: 'user' as const, text: question, at, ...(quoted ? { quote: quoted } : {}) };
   if (input.chatId) {
     const chat = getChat(core, projectId, subjectId, input.chatId);
     const messages = chat.messages.at(-1)?.role === 'user' ? chat.messages.slice(0, -1) : chat.messages;
-    return writeData(chatFile(core, projectId, subjectId, chat.id), Files.chat, { ...chat, messages: [...messages, { role: 'user' as const, text: question, at }], updatedAt: at });
+    return writeData(chatFile(core, projectId, subjectId, chat.id), Files.chat, { ...chat, messages: [...messages, message], updatedAt: at });
   }
   const id = newId('chat');
-  const context: ChatContext = { testId: input.context?.testId ?? null, problemId: input.context?.problemId ?? null, unitId: input.context?.unitId ?? null };
+  const context = normalizeContext(input.context);
   const title = question.replace(/\s+/g, ' ').slice(0, 40);
   return writeData(chatFile(core, projectId, subjectId, id), Files.chat, {
     version: FORMAT_VERSION,
@@ -360,7 +396,7 @@ export function postQuestion(core: AppCore, projectId: string, subjectId: string
     title,
     context,
     sessionId: null,
-    messages: [{ role: 'user' as const, text: question, at }],
+    messages: [message],
     createdAt: at,
     updatedAt: at,
   });
@@ -403,6 +439,37 @@ function chatContextInput(core: AppCore, projectId: string, subjectId: string, c
     const note = getNote(core, projectId, subjectId, context.unitId);
     out.note = note ? { unitName: note.unitName, markdown: note.markdown } : null;
   }
+  out.chapter = null;
+  out.unitWeakness = null;
+  out.textbook = null;
+  if (context.chapterUnitId) {
+    const ch = getChapter(core, projectId, subjectId, context.chapterUnitId);
+    const row = getTextbookView(core, projectId, subjectId).chapters.find((c) => c.unitId === context.chapterUnitId);
+    out.chapter = ch
+      ? {
+          no: row?.no ?? null,
+          title: ch.title,
+          chapterVersion: ch.chapterVersion,
+          intro: ch.intro,
+          points: ch.points,
+          pitfalls: ch.pitfalls,
+          examples: ch.examples.map((e) => ({ body: e.body, choices: e.choices, answer: e.answer, solution: e.solution })),
+          // 確認問題は、答えを渡さない(解く前に答えを教えないため)
+          quiz: ch.quiz.map((q) => ({ body: q.body, choices: q.choices })),
+          supplements: ch.supplements.map((s) => ({ title: s.title, markdown: s.markdown })),
+        }
+      : null;
+    const w = getWeaknessView(core, projectId, subjectId).rows.find((r) => r.unitId === context.chapterUnitId);
+    out.unitWeakness = w
+      ? { unitName: w.unitName, mastery: w.mastery, attempts: w.attempts, mistakes: Object.fromEntries(Object.entries(w.mistakes).map(([m, n]) => [MISTAKE_LABEL[m as keyof typeof MISTAKE_LABEL], n])) }
+      : null;
+  }
+  if (context.textbook && !context.chapterUnitId) {
+    const tb = getTextbookView(core, projectId, subjectId);
+    out.textbook = {
+      chapters: tb.chapters.map((c) => ({ no: c.no, title: c.title, status: c.status, read: c.read, unlearned: c.unlearned, mastery: c.mastery })),
+    };
+  }
   return out;
 }
 
@@ -430,8 +497,12 @@ export async function answerChat(core: AppCore, projectId: string, subjectId: st
             return { unitName: r.unitName, mastery: r.mastery, attempts: r.attempts, frequentMistake: m ? MISTAKE_LABEL[m] : null };
           }),
         },
-        history: chat.messages.slice(0, -1).slice(-CHAT_HISTORY_MAX).map((m) => ({ role: m.role, text: m.text })),
+        history: chat.messages
+          .slice(0, -1)
+          .slice(-CHAT_HISTORY_MAX)
+          .map((m) => ({ role: m.role, text: m.text, ...(m.quote ? { quote: m.quote } : {}) })),
         question: last.text,
+        quote: last.quote ?? null,
       },
       schema: ChatOutputSchema,
       env: core.claudeEnv(),

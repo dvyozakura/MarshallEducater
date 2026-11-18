@@ -8,6 +8,7 @@ import {
   ChapterBodyOutputSchema,
   ChapterReviewOutputSchema,
   ChapterReviseOutputSchema,
+  ChapterSupplementOutputSchema,
   DIFFICULTY_LABEL,
   FORMAT_VERSION,
   MISTAKE_LABEL,
@@ -28,7 +29,7 @@ import { generateVerified, type ProblemRequest } from './generate';
 import type { JobContext } from './jobs';
 import { getProject, getSubject } from './projects';
 import { Files, readDataOr, writeData } from './store';
-import { unitMistakes } from './teach';
+import { getChat, unitMistakes } from './teach';
 import { CHAPTER_JOB_KIND, chapterFileId, chapterSpec, getChapter, syncToc, textbookPaths, updateTocChapter } from './textbook';
 import { saveTest } from './tests';
 import { getTrend } from './trend';
@@ -362,6 +363,94 @@ export async function buildChapter(core: AppCore, projectId: string, subjectId: 
     quizTestId: chapter.quizTestId,
   });
   return { unitId, chapterVersion, examples: examples.length, quiz: chapter.quiz.length, issues: reviewed.issues.length, revised: reviewed.revised, quizTestId: chapter.quizTestId, verify: gen.counts };
+}
+
+// ───────── 教材に反映(質問のやりとりから補足を追記) ─────────
+
+export interface SupplementResult {
+  unitId: string;
+  chapterVersion: number;
+  title: string;
+  issues: number;
+  revised: boolean;
+}
+
+/**
+ * 章への質問のやりとりをもとに、その章へ補足を追記する。
+ * 補足は別の呼び出しで点検し、指摘があれば1回直す。追記前の版は versions/ に残す。
+ */
+export async function addSupplement(core: AppCore, projectId: string, subjectId: string, unitId: string, chatId: string, ctx: JobContext): Promise<SupplementResult> {
+  const project = getProject(core, projectId);
+  const subject = getSubject(project, subjectId);
+  const before = getChapter(core, projectId, subjectId, unitId);
+  if (!before) throw new Error('この章は、まだ作っていません。補足は、章を作ってから足せます。');
+  const chat = getChat(core, projectId, subjectId, chatId);
+  if (chat.context.chapterUnitId !== unitId) throw new Error('この質問は、この章についてのものではありません。');
+  if (!chat.messages.some((m) => m.role === 'assistant')) throw new Error('まだ答えの付いた質問がありません。質問して答えが付いてから「教材に反映」してください。');
+  const toc = syncToc(core, projectId, subjectId);
+  const ordered = toc.chapters.filter((c) => !c.orphan);
+  const index = ordered.findIndex((c) => c.unitId === unitId);
+  const no = index + 1;
+  const chapterTitle = `${no > 0 ? `第${no}章 ` : ''}${before.title}`;
+  const row = getWeaknessView(core, projectId, subjectId).rows.find((r) => r.unitId === unitId) ?? null;
+
+  ctx.progress('質問のやりとりをもとに、補足を書いています');
+  const sup = await callClaude({
+    projectDir: core.projectDir(projectId),
+    kind: 'chapter_supplement',
+    vars: { subjectName: subject.name, chapterTitle },
+    input: {
+      project: projectBrief(project),
+      chapter: {
+        title: chapterTitle,
+        intro: before.intro,
+        points: before.points,
+        pitfalls: before.pitfalls,
+        examples: before.examples.map((e) => ({ body: e.body, answer: e.answer, solution: e.solution })),
+        supplements: before.supplements.map((s) => ({ title: s.title, markdown: s.markdown })),
+      },
+      conversation: chat.messages.map((m) => ({ role: m.role, text: m.text, quote: m.quote ?? null })),
+      weakness: row ? { mastery: row.mastery, attempts: row.attempts, mistakes: Object.fromEntries(Object.entries(row.mistakes).map(([m, n]) => [MISTAKE_LABEL[m as keyof typeof MISTAKE_LABEL], n])) } : null,
+    },
+    schema: ChapterSupplementOutputSchema,
+    env: core.claudeEnv(),
+    signal: ctx.signal,
+    check: (d) => (d.markdown.trim().length < 20 ? 'markdown が短すぎます。補足として読める説明を書いてください。' : null),
+  });
+
+  // 追記分も、別の呼び出しで点検する(指摘があれば1回直す)
+  const reviewed = await reviewAndRevise(
+    core,
+    {
+      projectId,
+      subjectName: subject.name,
+      project,
+      chapterTitle,
+      target: 'supplement',
+      sections: { supplement: sup.data.markdown.trim() },
+      figures: [],
+      examples: [],
+      context: before.points,
+    },
+    ctx,
+  );
+
+  // 待っている間に章が作り直されていたら、そちらに足す(前の版は残す)
+  ctx.progress('補足を章に追記しています');
+  const current = getChapter(core, projectId, subjectId, unitId) ?? before;
+  keepVersion(core, projectId, subjectId, current);
+  const at = new Date().toISOString();
+  const chapterVersion = current.chapterVersion + 1;
+  writeChapter(
+    core,
+    projectId,
+    subjectId,
+    { ...current, chapterVersion, updatedAt: at, supplements: [...current.supplements, { at, chatId, title: sup.data.title.trim(), markdown: reviewed.sections.supplement ?? sup.data.markdown.trim() }] },
+    no,
+  );
+  appendReviewRecord(core, projectId, subjectId, unitId, { at, chapterVersion, target: 'supplement', issues: reviewed.issues, comment: reviewed.comment, revised: reviewed.revised, verify: null });
+  updateTocChapter(core, projectId, subjectId, unitId, { chapterVersion });
+  return { unitId, chapterVersion, title: sup.data.title.trim(), issues: reviewed.issues.length, revised: reviewed.revised };
 }
 
 // ───────── まとめて作る ─────────

@@ -327,6 +327,10 @@ function chat({ input }) {
   if (c.grading) parts.push(`採点: ${c.grading.score} / ${c.grading.max}${c.grading.mistake ? `(${c.grading.mistake})` : ''}。`);
   if (c.explanation) parts.push('解説を踏まえています。');
   if (c.note) parts.push(`授業ノート「${c.note.unitName}」を踏まえています。`);
+  if (c.chapter) parts.push(`教材「${c.chapter.title}」(第 ${c.chapter.chapterVersion} 版、補足 ${c.chapter.supplements.length} 件)を踏まえています。`);
+  if (c.unitWeakness) parts.push(`この単元の習熟度: ${c.unitWeakness.mastery}。`);
+  if (c.textbook) parts.push(`教材の目次(${c.textbook.chapters.length} 章)を踏まえています。`);
+  if (input.quote) parts.push(`選んだ箇所「${input.quote.slice(0, 30)}」について説明します。`);
   parts.push(`苦手マップ: 弱い単元 ${input.weakness.units.length} 件。`);
   parts.push(`これまでのやりとり: ${input.history.length} 件。`);
   parts.push('式で書くと $x^2 \\geq 0$ です。');

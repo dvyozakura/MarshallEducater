@@ -6,6 +6,7 @@ import { api, errorMessage } from '../../api';
 import { Empty, ErrorBox, Md, Meter } from '../../components';
 import { JobRow, useJobs } from '../../jobs';
 import { useNav } from '../../nav';
+import { TextbookChat } from '../TextbookChat';
 
 const STATUS_TONE: Record<ChapterStatus, string> = { none: '', generating: 'running', done: 'good', stale: 'mid' };
 
@@ -25,6 +26,7 @@ export function TextbookTab({ projectId, subjectId }: { projectId: string; subje
   const [pdf, setPdf] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [otherNote, setOtherNote] = useState<{ unitId: string; markdown: string } | null>(null);
+  const [askOpen, setAskOpen] = useState(false);
   const { jobs } = useJobs();
   const mine = jobs.filter((j) => j.kind === 'create_chapter' && j.projectId === projectId && (j.params as { subjectId?: string } | null)?.subjectId === subjectId);
   const unitOf = (j: (typeof mine)[number]) => (j.params as { unitId?: string } | null)?.unitId;
@@ -79,7 +81,11 @@ export function TextbookTab({ projectId, subjectId }: { projectId: string; subje
         <button data-testid="tb-export-all" disabled={pdfBusy || c.done + c.stale === 0} onClick={() => void exportAll()}>
           科目全体を PDF に
         </button>
+        <button className={askOpen ? 'primary' : ''} data-testid="tb-ask" onClick={() => setAskOpen((v) => !v)}>
+          {askOpen ? '質問欄を閉じる' : '教材について質問'}
+        </button>
       </div>
+      {askOpen && <TextbookChat projectId={projectId} subjectId={subjectId} chapterUnitId={null} />}
       {pdf && (
         <div className="hint" data-testid="tb-export-path">
           保存しました: {pdf}{' '}
