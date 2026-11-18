@@ -30,7 +30,7 @@ import type { JobContext } from './jobs';
 import { getProject, getSubject } from './projects';
 import { Files, readDataOr, writeData } from './store';
 import { getChat, unitMistakes } from './teach';
-import { CHAPTER_JOB_KIND, chapterFileId, chapterSpec, getChapter, syncToc, textbookPaths, updateTocChapter } from './textbook';
+import { CHAPTER_JOB_KIND, chapterFileId, chapterSpec, getChapter, syncToc, textbookPaths, updateTocChapter, type ChapterSpec } from './textbook';
 import { saveTest } from './tests';
 import { getTrend } from './trend';
 import { projectBrief } from './units';
@@ -216,7 +216,15 @@ export interface BuildResult {
  * ①本文(導入・要点・よくある誤り・例題のねらい)→ ②例題と確認問題を作って検算 → ③本文を別の呼び出しで点検 → ④指摘があれば1回直す → ⑤保存。
  * 作り直しのときは、前の版を versions/ に残す。
  */
-export async function buildChapter(core: AppCore, projectId: string, subjectId: string, unitId: string, ctx: JobContext): Promise<BuildResult> {
+export async function buildChapter(
+  core: AppCore,
+  projectId: string,
+  subjectId: string,
+  unitId: string,
+  ctx: JobContext,
+  /** 厚さの決め方を上書きする(本物での最小確認 smoke_real で、呼び出しを減らすためだけに使う)。 */
+  opts: { spec?: Partial<ChapterSpec> } = {},
+): Promise<BuildResult> {
   const project = getProject(core, projectId);
   const subject = getSubject(project, subjectId);
   const toc = syncToc(core, projectId, subjectId);
@@ -228,7 +236,7 @@ export async function buildChapter(core: AppCore, projectId: string, subjectId: 
   const unitName = entry.title.split(' > ').at(-1) ?? entry.title;
   const row = getWeaknessView(core, projectId, subjectId).rows.find((r) => r.unitId === unitId) ?? null;
   const mastery = row?.mastery ?? null;
-  const spec = chapterSpec(mastery, entry.unlearned, project.examType);
+  const spec = { ...chapterSpec(mastery, entry.unlearned, project.examType), ...opts.spec };
   const trend = getTrend(core, projectId, subjectId);
   const previous = getChapter(core, projectId, subjectId, unitId);
   const note = readTextIfExists(core.paths(projectId).subject(subjectId).note(safeFileName(unitId)));

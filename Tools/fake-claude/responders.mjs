@@ -258,11 +258,15 @@ function plan({ input, mode }) {
       items: input.subjects.map((s) => {
         const weak = s.weakUnits.map((u) => u.unitId);
         const pool = weak.length ? weak : s.units.map((u) => u.id);
+        // 教材: 前半の週に、読む順のおすすめから1章ずつ
+        const toRead = s.textbook?.toRead ?? [];
+        const chapter = i < input.weeks.length / 2 ? toRead[i] : undefined;
         return {
           subjectId: s.id,
           unitIds: [pool[i % pool.length], pool[(i + 1) % pool.length]].filter((v, k, a) => a.indexOf(v) === k),
           minutes: budget,
-          goal: weak.length ? '弱い単元を標準レベルまで引き上げる' : '基本事項の確認',
+          goal: (weak.length ? '弱い単元を標準レベルまで引き上げる' : '基本事項の確認') + (chapter ? `。教材の第${chapter.no}章を読む` : ''),
+          chapterUnitIds: chapter ? [chapter.unitId, ...(mode === 'bad_chapter' ? ['no-such-unit'] : [])] : [],
         };
       }),
     };

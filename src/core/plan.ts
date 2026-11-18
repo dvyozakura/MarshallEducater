@@ -9,6 +9,7 @@ import type { JobContext } from './jobs';
 import { getProject } from './projects';
 import { Files, readData, writeData } from './store';
 import { listTests } from './tests';
+import { getTextbookView, readingLabel, suggestReading } from './textbook';
 import { getUnits, projectBrief } from './units';
 import { dominantMistake, getWeaknessView, TARGET_MASTERY } from './weakness';
 
@@ -70,6 +71,8 @@ export interface PlanView {
   late: boolean;
   /** 計画の範囲が終わった・試験日や科目が変わった、などで作り直しが要る。 */
   outdated: string | null;
+  /** 週の計画に入っている「教材の第N章を読む」の一言(キーは「科目ID/単元ID」)。 */
+  chapterLabels: Record<string, string>;
 }
 
 export function progressOf(plan: Plan, today: string, active: Set<string>): { doneDays: number; missedDays: number } {
@@ -89,7 +92,7 @@ export function getPlanView(core: AppCore, projectId: string): PlanView {
   const plan = getPlan(core, projectId);
   const today = todayString();
   const exam = examState(today, project.examDate);
-  if (!plan) return { plan, today, exam, currentWeek: null, progress: { doneDays: 0, missedDays: 0 }, late: false, outdated: null };
+  if (!plan) return { plan, today, exam, currentWeek: null, progress: { doneDays: 0, missedDays: 0 }, late: false, outdated: null, chapterLabels: {} };
   const current = plan.weeks.find((w) => daysBetween(w.start, today) >= 0 && daysBetween(today, w.end) >= 0);
   const progress = progressOf(plan, today, activeDays(core, project));
   let outdated: string | null = null;
@@ -98,7 +101,36 @@ export function getPlanView(core: AppCore, projectId: string): PlanView {
   else if (plan.dailyMinutes !== project.dailyMinutes) outdated = '1日に使える時間が変わりました。';
   else if (project.subjects.some((s) => !planned.has(s.id))) outdated = '科目が増えました。';
   else if (!current && exam === 'future') outdated = '計画した期間が終わりました。';
-  return { plan, today, exam, currentWeek: current?.index ?? null, progress, late: exam === 'future' && progress.missedDays >= LATE_MISSED_DAYS, outdated: exam === 'future' ? outdated : null };
+  return { plan, today, exam, currentWeek: current?.index ?? null, progress, late: exam === 'future' && progress.missedDays >= LATE_MISSED_DAYS, outdated: exam === 'future' ? outdated : null, chapterLabels: planChapterLabels(core, projectId, plan) };
+}
+
+/** 計画に渡す教材の状況: 章の数・既読の数・読む順のおすすめ。 */
+function textbookBrief(core: AppCore, projectId: string, subjectId: string) {
+  const view = getTextbookView(core, projectId, subjectId);
+  const live = view.chapters.filter((c) => !c.orphan);
+  return {
+    chapters: live.length,
+    read: live.filter((c) => c.read).length,
+    chapterIds: live.map((c) => c.unitId),
+    toRead: suggestReading(view, PLAN_READING_MAX).map((s) => ({ unitId: s.unitId, no: s.no, title: s.title, reason: s.reason, built: s.status === 'done' || s.status === 'stale' })),
+  };
+}
+
+/** 計画に渡す「読む章のおすすめ」の数(暫定)。 */
+export const PLAN_READING_MAX = 12;
+
+/** 計画の各週で読む章の一言(画面用)。キーは「科目ID/単元ID」。 */
+export function planChapterLabels(core: AppCore, projectId: string, plan: Plan): Record<string, string> {
+  const out: Record<string, string> = {};
+  const subjectIds = new Set(plan.weeks.flatMap((w) => w.items.filter((i) => i.chapterUnitIds.length > 0).map((i) => i.subjectId)));
+  for (const sid of subjectIds) {
+    try {
+      for (const c of getTextbookView(core, projectId, sid).chapters) if (!c.orphan) out[`${sid}/${c.unitId}`] = readingLabel(c);
+    } catch {
+      /* 科目が消えた */
+    }
+  }
+  return out;
 }
 
 /** 学習計画を作る(すでにあれば作り直す)。 */
@@ -133,9 +165,11 @@ export async function createPlan(core: AppCore, projectId: string, reason: strin
       untestedUnits: w.untested,
       units: leafUnits(getUnits(core, projectId, s.id).tree).map((u) => ({ id: u.id, name: u.fullName, weight: u.weight })),
       trend: trend ? { format: trend.format, frequentUnits: trend.frequentUnits, difficulty: trend.difficulty } : null,
+      textbook: textbookBrief(core, projectId, s.id),
     };
   });
   const unitIds = new Map(subjects.map((s) => [s.id, new Set(s.units.map((u) => u.id))]));
+  const chapterIds = new Map(subjects.map((s) => [s.id, new Set(s.textbook.chapterIds)]));
   const progress = previous ? { ...progressOf(previous, today, activeDays(core, project)), reason: reason || '計画の見直し', previousAdvice: previous.advice.slice(0, 600) } : null;
 
   ctx.progress(`Claude が ${weeks.length} 週ぶんの学習計画を作っています`);
@@ -149,7 +183,7 @@ export async function createPlan(core: AppCore, projectId: string, reason: strin
       dailyMinutes: project.dailyMinutes,
       weeks: weeks.map((w) => ({ index: w.index, start: w.start, end: w.end, days: daysBetween(w.start, w.end) + 1, mock: mockWeeks.has(w.index) })),
       beyond,
-      subjects,
+      subjects: subjects.map((s) => ({ ...s, textbook: { chapters: s.textbook.chapters, read: s.textbook.read, toRead: s.textbook.toRead } })),
       progress,
     },
     schema: PlanOutputSchema,
@@ -170,7 +204,12 @@ export async function createPlan(core: AppCore, projectId: string, reason: strin
     mock: mockWeeks.has(w.index),
     theme: r.data.weeks[i].theme,
     // 一覧に無い単元は捨てる。時間は 0 以上の整数にする
-    items: r.data.weeks[i].items.map((it) => ({ ...it, unitIds: it.unitIds.filter((u) => unitIds.get(it.subjectId)!.has(u)), minutes: Math.max(0, Math.round(it.minutes)) })),
+    items: r.data.weeks[i].items.map((it) => ({
+      ...it,
+      unitIds: it.unitIds.filter((u) => unitIds.get(it.subjectId)!.has(u)),
+      chapterUnitIds: [...new Set(it.chapterUnitIds.filter((u) => chapterIds.get(it.subjectId)!.has(u)))],
+      minutes: Math.max(0, Math.round(it.minutes)),
+    })),
   }));
   return writeData(core.paths(projectId).planJson, Files.plan, {
     version: FORMAT_VERSION,

@@ -560,6 +560,8 @@ export const PlanWeekOutputSchema = z.object({
       /** その週にこの科目へ使う時間(分)。 */
       minutes: z.number().min(0),
       goal: z.string().default(''),
+      /** その週に読む教材の章(単元 ID。その科目の textbook.chapters にあるものだけ。無ければ空)。 */
+      chapterUnitIds: z.array(z.string()).default([]),
     }),
   ),
 });

@@ -355,3 +355,40 @@ export function getTextbookView(core: AppCore, projectId: string, subjectId: str
     : [];
   return { subjectId, subjectName: subject.name, chapters, counts, deferred: toc.deferred, deferredAt: toc.deferredAt, otherNotes };
 }
+
+// ───────── 読む章のおすすめ(学習計画・今日の課題) ─────────
+
+export interface ReadingSuggestion {
+  unitId: string;
+  no: number;
+  name: string;
+  title: string;
+  status: ChapterStatus;
+  /** なぜこの章か(未習・苦手・目次の順)。 */
+  reason: string;
+}
+
+/**
+ * まだ読んでいない章を、読む順に並べる(暫定。DECISIONS.md に記録)。
+ * ①未習の印の単元 → ②苦手(習熟度が THICK_BELOW 未満。低い順)→ ③そのほか(目次の順)。外れた章は入れない。
+ */
+export function suggestReading(view: TextbookView, limit = 8): ReadingSuggestion[] {
+  const rank = (c: TextbookChapterView) => (c.unlearned ? 0 : c.mastery !== null && c.mastery < THICK_BELOW ? 1 : 2);
+  return view.chapters
+    .filter((c) => !c.orphan && !c.read)
+    .sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? (a.mastery ?? 0) - (b.mastery ?? 0) : 0) || a.no - b.no)
+    .slice(0, limit)
+    .map((c) => ({
+      unitId: c.unitId,
+      no: c.no,
+      name: c.name,
+      title: c.title,
+      status: c.status,
+      reason: c.unlearned ? '未習の単元' : c.mastery !== null && c.mastery < THICK_BELOW ? `苦手な単元(習熟度 ${c.mastery})` : '目次の順',
+    }));
+}
+
+/** 「教材の第N章を読む」の一言。 */
+export function readingLabel(s: { no: number; name: string }): string {
+  return `教材の第${s.no}章「${s.name}」を読む`;
+}

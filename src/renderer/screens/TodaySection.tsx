@@ -105,6 +105,17 @@ export function TodaySection({ projectId }: { projectId: string }) {
               )}
             </div>
           )}
+          {s.reading && (
+            <div className="list-item" data-testid="today-reading" data-unit-id={s.reading.unitId}>
+              <span className="badge">教材</span>
+              <span className="grow">
+                <strong data-testid="today-reading-label">{s.reading.label}</strong> <span className="muted">({s.name}・{s.reading.reason})</span>
+              </span>
+              <button className="small" data-testid="today-reading-open" onClick={() => nav.go({ screen: 'chapter', projectId, subjectId: s.subjectId, unitId: s.reading!.unitId })}>
+                {s.reading.status === 'done' || s.reading.status === 'stale' ? '読む' : '章を開く(未作成)'}
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </Section>

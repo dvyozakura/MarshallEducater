@@ -13,6 +13,7 @@ import { getPlan } from './plan';
 import { getProject, getSubject } from './projects';
 import { Files, readData, readDataOr, writeData } from './store';
 import { createTest, listTests } from './tests';
+import { getTextbookView, readingLabel, suggestReading, type ReadingSuggestion } from './textbook';
 import { getUnits } from './units';
 import { dominantMistake, getWeaknessView } from './weakness';
 
@@ -248,9 +249,31 @@ export interface TodayView {
   date: string;
   hasPlan: boolean;
   /** 今日あつかう科目と、その課題(まだ作っていなければ null)。 */
-  subjects: Array<{ subjectId: string; name: string; minutes: number; test: Test | null; dueReviews: number }>;
+  subjects: Array<{ subjectId: string; name: string; minutes: number; test: Test | null; dueReviews: number; reading: TodayReading | null }>;
   /** 今日受ける通しの模擬試験(作成済みのものは test に入る)。 */
   mocks: Array<{ subjectId: string; name: string; date: string; test: Test | null }>;
+}
+
+/** 今日の課題の「教材の第N章を読む」。 */
+export interface TodayReading extends ReadingSuggestion {
+  label: string;
+  /** 学習計画のこの週に入っている章か(入っていなければ、未習・苦手の順のおすすめ)。 */
+  fromPlan: boolean;
+}
+
+/**
+ * 今日読む章(1科目1章、暫定)。今週の計画に入っている章のうち未読の最初のもの。無ければ、未習 → 苦手 → 目次の順のおすすめ。
+ * すべて読み終えていれば null。
+ */
+export function todayReading(core: AppCore, projectId: string, subjectId: string, plan: Plan | null, today: string): TodayReading | null {
+  const view = getTextbookView(core, projectId, subjectId);
+  const week = plan?.weeks.find((w) => daysBetween(w.start, today) >= 0 && daysBetween(today, w.end) >= 0);
+  const planned = week?.items.filter((i) => i.subjectId === subjectId).flatMap((i) => i.chapterUnitIds) ?? [];
+  const suggestions = suggestReading(view, view.chapters.length);
+  const fromPlan = planned.map((u) => suggestions.find((s) => s.unitId === u)).find((s) => s !== undefined);
+  const pick = fromPlan ?? suggestions[0];
+  if (!pick) return null;
+  return { ...pick, label: readingLabel(pick), fromPlan: !!fromPlan, reason: fromPlan ? `今週の計画(${pick.reason})` : pick.reason };
 }
 
 export function getTodayView(core: AppCore, projectId: string): TodayView {
@@ -264,6 +287,13 @@ export function getTodayView(core: AppCore, projectId: string): TodayView {
     name: name(s.subjectId),
     test: findDaily(core, projectId, s.subjectId, today),
     dueReviews: dueReviews(getReview(core, projectId, s.subjectId), today).length,
+    reading: (() => {
+      try {
+        return todayReading(core, projectId, s.subjectId, plan, today);
+      } catch {
+        return null; // 教材の目次が読めなくても、今日の課題は出す
+      }
+    })(),
   }));
   // 予定の日が来た模擬試験(未作成)と、今日作った模擬試験
   const mocks = [

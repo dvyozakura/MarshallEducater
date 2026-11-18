@@ -8,15 +8,71 @@ import { AppCore } from '../src/core/app';
 import { getAnswerKey, gradeTest, gradingTotals } from '../src/core/grading';
 import type { JobContext } from '../src/core/jobs';
 import { createProject } from '../src/core/projects';
+import { answerChat, postQuestion } from '../src/core/teach';
 import { createTest, getVerify } from '../src/core/tests';
+import { getChapter, getChapterReview, getTextbookView, textbookPaths } from '../src/core/textbook';
+import { buildChapter } from '../src/core/textbook_build';
 import { getUnits } from '../src/core/units';
 import { addDays, todayString } from '../src/shared/dates';
 import { leafUnits } from '../src/shared/subjects';
 
 const MAX_CALLS = 5;
 const fake = process.argv.includes('--fake');
+/** --textbook: 教材の最小確認(1つの章を作る → 点検 → その章に1回質問)。 */
+const textbookMode = process.argv.includes('--textbook');
 const repoRoot = process.cwd();
 const say = (s = '') => console.log(s);
+const DONE = Symbol('done');
+const indent = (s: string) => `   ${s.replace(/\n/g, '\n   ')}`;
+const mathCount = (s: string) => (s.match(/\$[^$]+\$/g) ?? []).length;
+
+/**
+ * 教材の最小確認: 第1章を小さな形(例題1題・選択式、確認問題なし)で作る → 点検(指摘があれば修正)→ その章に1回質問。
+ * 呼び出し: 本文 1+問題づくり 1+解き直し 1+点検 1(+修正 0〜1)+質問 1 = 5〜6。上限の 5 回に達したら質問は飛ばす。
+ */
+async function textbookCheck(core: AppCore, projectId: string, sid: string, ctx: JobContext, warnings: string[]): Promise<void> {
+  const view = getTextbookView(core, projectId, sid);
+  const first = view.chapters[0];
+  say(`2. 教材の第1章「${first.name}」を作ります(本文 → 例題1題の作成と検算 → 点検 → 指摘があれば修正。数分かかります)`);
+  const r = await buildChapter(core, projectId, sid, first.unitId, ctx, {
+    spec: { examples: [{ difficulty: 'easy', format: 'choice' }], quiz: [], chars: '800〜1500' },
+  });
+  const ch = getChapter(core, projectId, sid, first.unitId)!;
+  const review = getChapterReview(core, projectId, sid, first.unitId)?.records.at(-1);
+  say(`   版 ${r.chapterVersion}・例題 ${r.examples} 題・点検の指摘 ${r.issues} 件${r.revised ? '(直した)' : ''}・検算: 採用 ${r.verify.adopted}・作り直し ${r.verify.regenerated}・破棄 ${r.verify.discarded}`);
+  for (const [name, text] of [['導入', ch.intro], ['要点', ch.points], ['よくある誤り', ch.pitfalls]] as const) {
+    say(`   --- ${name}(${text.length} 字、数式 ${mathCount(text)} 個)`);
+    say(indent(text.length > 900 ? `${text.slice(0, 900)}…(以下略)` : text));
+    if (text.trim().length < 80) warnings.push(`章の「${name}」が短すぎます(${text.trim().length} 字)。`);
+  }
+  if (mathCount(ch.points) === 0) warnings.push('数学の章の「要点」に、数式($...$)が1つもありません。');
+  if (ch.figures.length) say(`   図: ${ch.figures.length} 個(${ch.figures.map((f) => f.caption).join('、')})`);
+  for (const e of ch.examples) {
+    say(`   --- 例題(${e.difficulty}・${e.format})ねらい: ${e.focus}`);
+    say(indent(e.body));
+    e.choices.forEach((c, i) => say(`     (${i + 1}) ${c}`));
+    say(`   解答: ${e.answer}`);
+    say(indent(e.solution.slice(0, 600)));
+  }
+  if (review) {
+    say(`   点検の所見: ${review.comment || '(なし)'}`);
+    for (const i of review.issues) say(`   指摘(${i.section}): ${i.problem} → ${i.fix}`);
+  }
+  say(`   章のファイル: ${textbookPaths(core, projectId, sid).chapterMd(first.unitId)}`);
+
+  if (core.limiter.used() >= MAX_CALLS) {
+    warnings.push(`呼び出しが上限(${MAX_CALLS} 回)に達したので、章への質問は飛ばしました(点検の修正が入ったため)。`);
+    return;
+  }
+  const quote = ch.points.split('\n').find((l) => l.trim().length > 15)?.trim().slice(0, 120) ?? null;
+  say(`3. 章の一文を選んで質問します(選んだ箇所: 「${quote ?? 'なし'}」)`);
+  const chat = postQuestion(core, projectId, sid, { context: { chapterUnitId: first.unitId }, question: 'この部分を、別の言い方と具体例で説明してください。', quote });
+  const answered = await answerChat(core, projectId, sid, chat.id, ctx);
+  const answer = answered.messages.at(-1)!.text;
+  say(`   答え(${answer.length} 字、数式 ${mathCount(answer)} 個):`);
+  say(indent(answer.length > 1200 ? `${answer.slice(0, 1200)}…(以下略)` : answer));
+  if (answer.trim().length < 50) warnings.push('質問への答えが短すぎます。');
+}
 
 async function main(): Promise<number> {
   const base = resolve(repoRoot, 'tests', 'tmp');
@@ -57,6 +113,11 @@ async function main(): Promise<number> {
     const sid = project.subjects[0].id;
     const units = leafUnits(getUnits(core, project.id, sid).tree);
     say(`1. プロジェクトを作成: ${project.name}(科目 ${project.subjects[0].name}、単元 ${units.length})`);
+
+    if (textbookMode) {
+      await textbookCheck(core, project.id, sid, ctx, warnings);
+      throw DONE;
+    }
 
     // 2. 問題を2問作る → 検算(別の呼び出しで解き直し)
     say('2. 問題を2問作り、検算します(数分かかります)');
@@ -108,7 +169,7 @@ async function main(): Promise<number> {
     if (grading.items[1] && grading.items[1].score >= grading.items[1].max) warnings.push('わざと誤答にした2問目が、満点になりました。');
     if (grading.items[1] && grading.items[1].score < grading.items[1].max && !grading.items[1].mistake) warnings.push('減点のある2問目に、ミスの種類が付いていません。');
   } catch (e) {
-    failure = e instanceof Error ? e.message : String(e);
+    if (e !== DONE) failure = e instanceof Error ? e.message : String(e);
   }
 
   // 呼び出しの記録(logs/)から、回数と所要時間をまとめる

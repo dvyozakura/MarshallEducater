@@ -153,6 +153,13 @@ export function Plan({ projectId }: { projectId: string }) {
                         <td>
                           <div>{it.unitIds.map((u) => units[`${it.subjectId}/${u}`] ?? u).join('、')}</div>
                           <div className="muted">{it.goal}</div>
+                          {it.chapterUnitIds.map((u) => (
+                            <div key={u}>
+                              <button className="link" data-testid="week-reading" onClick={() => nav.go({ screen: 'chapter', projectId, subjectId: it.subjectId, unitId: u })}>
+                                📖 {view.chapterLabels[`${it.subjectId}/${u}`] ?? u}
+                              </button>
+                            </div>
+                          ))}
                         </td>
                       </tr>
                     ))}
