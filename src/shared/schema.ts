@@ -335,6 +335,8 @@ export const ProblemSchema = z.object({
   points: z.number(),
   figureSvg: z.string().nullable().default(null),
   origin: ProblemOriginSchema.default('practice'),
+  /** 復習の問題のとき: もとになった(前に間違えた)問題。 */
+  reviewOf: z.object({ testId: z.string(), problemId: z.string() }).nullable().default(null),
 });
 export type Problem = z.infer<typeof ProblemSchema>;
 
@@ -599,6 +601,8 @@ export const ReviewItemSchema = z.object({
   intervalDays: z.number().int(),
   /** 連続で正解した回数。 */
   streak: z.number().int().default(0),
+  /** この復習を最後に出したテスト(同じテストの採点を二重に数えないため)。 */
+  lastReviewedBy: z.string().nullable().default(null),
 });
 export type ReviewItem = z.infer<typeof ReviewItemSchema>;
 export const ReviewSchema = z.object({ version: z.number().int(), items: z.array(ReviewItemSchema) });

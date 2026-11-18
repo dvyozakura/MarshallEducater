@@ -126,6 +126,7 @@ export function putTest(t: TestCore, projectId: string, subjectId: string, testI
     points: 10,
     figureSvg: null,
     origin: 'diagnostic' as const,
+    reviewOf: null,
   });
   return writeData(tp.testJson, Files.test, {
     version: FORMAT_VERSION,

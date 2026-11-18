@@ -51,6 +51,7 @@ export async function createTest(core: AppCore, projectId: string, subjectId: st
     points: v.problem.points,
     figureSvg: v.problem.figureSvg,
     origin: v.request.origin,
+    reviewOf: v.request.reviewOf ?? null,
   }));
   const key: AnswerKey = {
     version: FORMAT_VERSION,

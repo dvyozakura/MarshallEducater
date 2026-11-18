@@ -5,6 +5,7 @@ import { api, errorMessage } from '../api';
 import { ErrorBox, Meter, Section } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { TestRow } from './subject/TestsTab';
+import { TodaySection } from './TodaySection';
 import { useNav } from '../nav';
 
 export function Dashboard({ projectId }: { projectId: string }) {
@@ -16,6 +17,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
   const activeJobs = jobs.filter((j) => j.projectId === projectId && (j.status === 'running' || j.status === 'queued'));
   const [tests, setTests] = useState<Record<string, Test[]>>({});
   const [summaries, setSummaries] = useState<Awaited<ReturnType<typeof api.subjectSummaries>>>([]);
+  const [recent, setRecent] = useState<Awaited<ReturnType<typeof api.recentResults>>>([]);
   const finished = jobs.filter((j) => j.projectId === projectId && j.status !== 'running' && j.status !== 'queued').length;
   useEffect(() => {
     if (!project) return;
@@ -24,6 +26,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
       (e) => setError(errorMessage(e)),
     );
     void api.subjectSummaries(projectId).then(setSummaries, () => {});
+    void api.recentResults(projectId).then(setRecent, () => {});
   }, [project, projectId, finished]);
   const creating = (subjectId: string) => activeJobs.some((j) => j.kind === 'create_diagnostic' && (j.params as { subjectId?: string } | null)?.subjectId === subjectId);
   const diagnosticOf = (subjectId: string) => (tests[subjectId] ?? []).find((t) => t.kind === 'diagnostic') ?? null;
@@ -44,7 +47,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
   if (!project) return <div className="page">読み込み中…</div>;
 
   const noDiagnostic = project.subjects.filter((s) => tests[s.id] && !diagnosticOf(s.id));
-  const openTests = project.subjects.flatMap((s) => (tests[s.id] ?? []).filter((t) => t.status !== 'graded' && t.kind !== 'daily'));
+  const openTests = project.subjects.flatMap((s) => (tests[s.id] ?? []).filter((t) => t.status !== 'graded' && t.kind !== 'daily' && t.kind !== 'mock'));
 
   return (
     <div className="page" data-testid="screen-dashboard">
@@ -84,6 +87,8 @@ export function Dashboard({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
+
+      <TodaySection projectId={projectId} />
 
       <Section title="科目" testId="subjects-section">
         <div className="cards">
@@ -135,6 +140,22 @@ export function Dashboard({ projectId }: { projectId: string }) {
         <Section title="これから解くテスト・採点待ち" testId="open-tests">
           {openTests.map((t) => (
             <TestRow key={t.id} projectId={projectId} test={t} />
+          ))}
+        </Section>
+      )}
+
+      {recent.length > 0 && (
+        <Section title="最近の結果" testId="recent-results">
+          {recent.map((r) => (
+            <div key={r.testId} className="list-item clickable" data-testid="recent-row" onClick={() => nav.go({ screen: 'result', projectId, subjectId: r.subjectId, testId: r.testId })}>
+              <span className="muted">{r.gradedAt.slice(5, 10).replace('-', '/')}</span>
+              <span className="grow">
+                <strong>{r.title}</strong>
+              </span>
+              <span className={`badge ${r.rate >= 70 ? 'good' : r.rate >= 40 ? 'mid' : 'low'}`}>
+                {r.score} / {r.max} 点({r.rate}%)
+              </span>
+            </div>
           ))}
         </Section>
       )}

@@ -204,7 +204,7 @@ function grade({ input, mode }) {
       const sum = String(sumOf(it.body));
       let score = 0;
       if (it.format === 'choice') score = it.answer === it.key ? it.points : 0;
-      else if ((it.answer.match(/d+/g) ?? []).includes(sum)) score = it.points;
+      else if ((it.answer.match(/\d+/g) ?? []).includes(sum)) score = it.points;
       else if (it.format === 'essay' && it.answer.includes('足') && mode !== 'strict') score = it.points / 2;
       if (score >= it.points) return { problemId: it.problemId, score, rationale: '正解と一致', mistake: null, comment: '' };
       const mistake = mode === 'no_mistake' ? null : it.format === 'choice' ? 'misread' : it.format === 'short' ? 'calculation' : score > 0 ? 'calculation' : 'approach';

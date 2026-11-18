@@ -599,6 +599,9 @@ table.grid th.num {
 .plan-week { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
 .plan-week.current { border-color: var(--accent); background: #f7faff; }
 .plan-week table { margin-top: 6px; }
+.today-mix { margin: 0 0 6px 8px; }
+.list-item.clickable { cursor: pointer; }
+.list-item.clickable:hover { background: #f7faff; }
 .spark { color: var(--accent); vertical-align: middle; }
 table.grid td.miss { font-weight: 700; color: var(--low); background: #fff5f5; }
 .good-text { color: var(--good); }

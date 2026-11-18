@@ -9,9 +9,10 @@ import type { AppCore } from './app';
 import { callClaude } from './claude/task';
 import { getTakeView, saveDraft, submitAnswers } from './answers';
 import * as C from './correction';
+import { createDaily, createScheduledMock, getReview, getTodayView, updateReviewFromGrading } from './daily';
 import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
-import { getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
+import { getGrading, getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
 import { createPlan, getPlanView } from './plan';
@@ -32,6 +33,7 @@ interface JobDef<P> {
 export function createApi(core: AppCore) {
   // 採点(と上書き)のあとに行うこと
   onGraded(updateWeaknessFromGrading);
+  onGraded(updateReviewFromGrading);
 
   // ジョブの種類の登録簿。「もう一度試す」は、同じ種類・同じ引数で作り直す。
   const jobDefs = new Map<string, JobDef<never>>();
@@ -117,6 +119,22 @@ export function createApi(core: AppCore) {
     run: async (p, ctx) => {
       const plan = await createPlan(core, p.projectId, p.reason, ctx);
       return { weeks: plan.weeks.length, revision: plan.revision };
+    },
+  });
+
+  const startCreateDaily = defineJob<{ projectId: string; subjectId: string }>('create_daily', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 今日の課題の作成`,
+    run: async (p, ctx) => {
+      const test = await createDaily(core, p.projectId, p.subjectId, ctx);
+      return { testId: test.id, problems: test.problems.length };
+    },
+  });
+
+  const startCreateMock = defineJob<{ projectId: string; subjectId: string }>('create_mock', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 通しの模擬試験の作成`,
+    run: async (p, ctx) => {
+      const test = await createScheduledMock(core, p.projectId, p.subjectId, ctx);
+      return { testId: test.id, problems: test.problems.length };
     },
   });
 
@@ -214,6 +232,17 @@ export function createApi(core: AppCore) {
     overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
       overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
 
+    // ───── 今日の課題 ─────
+    getTodayView: (projectId: string) => getTodayView(core, projectId),
+    getReview: (projectId: string, subjectId: string) => getReview(core, projectId, subjectId),
+    startCreateDaily: (projectId: string, subjectId: string): JobInfo => startCreateDaily({ projectId, subjectId }),
+    /** 今日あつかう科目のうち、まだ課題が無いものをまとめて作る。 */
+    startCreateToday: (projectId: string): JobInfo[] =>
+      getTodayView(core, projectId)
+        .subjects.filter((s) => !s.test)
+        .map((s) => startCreateDaily({ projectId, subjectId: s.subjectId })),
+    startCreateMock: (projectId: string, subjectId: string): JobInfo => startCreateMock({ projectId, subjectId }),
+
     // ───── 学習計画 ─────
     getPlanView: (projectId: string) => getPlanView(core, projectId),
     /** 学習計画を作る。reason を渡すと「作り直し」(理由を Claude に伝える)。 */
@@ -222,6 +251,23 @@ export function createApi(core: AppCore) {
     // ───── 志望校の傾向 ─────
     getTrendView: (projectId: string, subjectId: string) => getTrendView(core, projectId, subjectId),
     startUpdateTrend: (projectId: string, subjectId: string): JobInfo => startUpdateTrend({ projectId, subjectId }),
+
+    /** ダッシュボード用: 最近の結果(採点済みのテスト、新しい順)。 */
+    recentResults: (projectId: string, limit = 6) =>
+      getProject(core, projectId)
+        .subjects.flatMap((s) =>
+          listTests(core, projectId, s.id)
+            .filter((t) => t.status === 'graded')
+            .map((t) => {
+              const g = getGrading(core, projectId, s.id, t.id);
+              if (!g) return null;
+              const totals = gradingTotals(g);
+              return { subjectId: s.id, testId: t.id, title: t.title, kind: t.kind, gradedAt: g.gradedAt, ...totals, rate: totals.max > 0 ? Math.round((totals.score / totals.max) * 100) : 0 };
+            })
+            .filter((r): r is NonNullable<typeof r> => r !== null),
+        )
+        .sort((a, b) => b.gradedAt.localeCompare(a.gradedAt))
+        .slice(0, limit),
 
     // ───── 苦手マップ ─────
     getWeaknessView: (projectId: string, subjectId: string) => getWeaknessView(core, projectId, subjectId),

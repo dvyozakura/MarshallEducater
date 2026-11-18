@@ -31,6 +31,8 @@ export interface ProblemRequest {
   mistake?: MistakeType | null;
   /** 前に間違えた問題(復習の類題のもと)。 */
   reference?: string | null;
+  /** 復習のとき: もとの問題。 */
+  reviewOf?: { testId: string; problemId: string } | null;
 }
 
 export interface GenerateArgs {
