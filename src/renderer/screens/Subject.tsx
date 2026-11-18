@@ -5,6 +5,7 @@ import { Empty, ErrorBox } from '../components';
 import { useNav } from '../nav';
 import { SourcesTab } from './subject/SourcesTab';
 import { TestsTab } from './subject/TestsTab';
+import { TrendTab } from './subject/TrendTab';
 import { UnitsTab } from './subject/UnitsTab';
 import { WeaknessTab } from './subject/WeaknessTab';
 
@@ -56,7 +57,7 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
         {current === 'tests' && <TestsTab {...props} />}
         {current === 'sources' && <SourcesTab {...props} />}
         {current === 'weakness' && <WeaknessTab {...props} />}
-        {current === 'trend' && <Placeholder>志望校の傾向は、過去問を確定したあとにここに出ます。</Placeholder>}
+        {current === 'trend' && <TrendTab {...props} />}
         {current === 'notes' && <Placeholder>授業ノートは、ここに出ます。</Placeholder>}
         {current === 'chats' && <Placeholder>質問のやりとりは、ここに出ます。</Placeholder>}
         {current === 'units' && <UnitsTab {...props} />}

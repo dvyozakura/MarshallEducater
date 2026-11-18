@@ -131,7 +131,7 @@ function generateProblems({ input, mode }) {
       const base = { unitId: r.unitId, difficulty: r.difficulty, format: r.format, points: r.format === 'essay' ? 20 : 10, figureSvg: null };
       if (!r.noFigure && hits(badSvg, r.index)) base.figureSvg = '<svg><script>alert(1)</script></svg>';
       else if (!r.noFigure && hits(withFigure, r.index)) base.figureSvg = FAKE_SVG;
-      const head = `【${r.unitName}・${r.origin}】`;
+      const head = `【${r.unitName}・${r.origin}${input.trend ? '・傾向反映' : ''}】`;
       const solution = `$${a}$ と $${b}$ を足すと $${sum}$。`;
       if (r.format === 'choice') {
         return { ...base, body: `${head} $${a} + ${b}$ の値として正しいものを選べ。`, choices: [`$${sum - 1}$`, `$${sum}$`, `$${sum + 1}$`, `$${sum + 10}$`], answer: '2', rubric: '', solution };
@@ -219,7 +219,37 @@ function grade({ input, mode }) {
   };
 }
 
+/** 傾向: 渡された過去問の設問から、形式・大問・単元を数えてまとめる。 */
+function trend({ input }) {
+  const all = input.sources.flatMap((s) => s.problems);
+  const count = (key) => {
+    const m = new Map();
+    for (const p of all) if (p[key]) m.set(p[key], (m.get(p[key]) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  };
+  const formats = count('answerFormat');
+  const label = { choice: '選択式', short: '短答', essay: '記述', other: 'その他' };
+  return {
+    format: `${label[formats[0]?.[0]] ?? '不明'}が中心(${formats.map(([f, n]) => `${label[f]} ${n} 問`).join('、')})`,
+    structure: count('major').map(([m, n]) => ({ label: m, description: `小問 ${n} 問` })),
+    frequentUnits: count('unitName')
+      .slice(0, 5)
+      .map(([u, n]) => ({ unit: u, note: `${n} 問` })),
+    volume: `過去問 ${input.sources.length} 件で、設問は合わせて ${all.length} 問`,
+    timeAllocation: '分量からの推定: 大問1つにつき 20 分',
+    difficulty: '標準的な問題が中心',
+    summaryMd: [
+      `## ${input.subject} の傾向`,
+      '',
+      `- 過去問 ${input.sources.length} 件(${input.sources.map((s) => s.title).join('、')})をもとにしています。`,
+      `- ${input.previous ? '前回のまとめを更新しました。' : '初めてのまとめです。'}`,
+      '- 数式の例: $x^2$',
+    ].join('\n'),
+  };
+}
+
 const responders = {
+  trend,
   grade,
   design_test: designTest,
   generate_problems: generateProblems,

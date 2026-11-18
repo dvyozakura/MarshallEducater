@@ -18,6 +18,7 @@ import { exportTestPdf, type TestPdfKind } from './print';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
+import { getTrendView, updateTrend } from './trend';
 import { adjustUnits, getUnits, saveUnits } from './units';
 import { getWeaknessView, TARGET_MASTERY, updateWeaknessFromGrading } from './weakness';
 
@@ -99,6 +100,14 @@ export function createApi(core: AppCore) {
     run: async (p, ctx) => {
       const grading = await gradeTest(core, p.projectId, p.subjectId, p.testId, ctx);
       return { testId: p.testId, ...gradingTotals(grading) };
+    },
+  });
+
+  const startUpdateTrend = defineJob<{ projectId: string; subjectId: string }>('update_trend', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 志望校の傾向のまとめ`,
+    run: async (p, ctx) => {
+      const trend = await updateTrend(core, p.projectId, p.subjectId, ctx);
+      return { basedOn: trend.basedOn.length };
     },
   });
 
@@ -195,6 +204,10 @@ export function createApi(core: AppCore) {
     /** 採点結果の上書き(score が null なら取り消し)。 */
     overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
       overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
+
+    // ───── 志望校の傾向 ─────
+    getTrendView: (projectId: string, subjectId: string) => getTrendView(core, projectId, subjectId),
+    startUpdateTrend: (projectId: string, subjectId: string): JobInfo => startUpdateTrend({ projectId, subjectId }),
 
     // ───── 苦手マップ ─────
     getWeaknessView: (projectId: string, subjectId: string) => getWeaknessView(core, projectId, subjectId),

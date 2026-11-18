@@ -323,7 +323,15 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
                     確定を取り消す
                   </button>
                 ) : (
-                  <button className="primary" data-testid="confirm-source" disabled={problems.length === 0} onClick={() => void act(() => api.confirmSource(projectId, subjectId, sourceId))}>
+                  <button className="primary" data-testid="confirm-source" disabled={problems.length === 0} onClick={() =>
+                      void act(async () => {
+                        const v = await api.confirmSource(projectId, subjectId, sourceId);
+                        // 過去問が確定したら、志望校の傾向をまとめ直す(裏で進む)
+                        if (v.source.kind === 'past_exam') await api.startUpdateTrend(projectId, subjectId).catch(() => {});
+                        return v;
+                      })
+                    }
+                  >
                     この{answers ? '答案' : '資料'}を確定する
                   </button>
                 )}
@@ -331,6 +339,13 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
               {src.status === 'confirmed' ? (
                 <div className="info" data-testid="source-confirmed">
                   確定済みです。{answers ? '採点に使われます。' : '傾向の分析や類題づくりに使われます。'}内容を直すと、確定は外れます。
+                  {src.kind === 'past_exam' && (
+                    <div className="buttons">
+                      <button data-testid="go-trend" onClick={() => nav.go({ screen: 'subject', projectId, subjectId, tab: 'trend' })}>
+                        志望校の傾向を見る
+                      </button>
+                    </div>
+                  )}
                   {src.testId && (
                     <div className="buttons">
                       <button className="primary" data-testid="go-grade" onClick={() => void api.startGrade(projectId, subjectId, src.testId!).catch(() => {}).then(() => nav.go({ screen: 'result', projectId, subjectId, testId: src.testId! }))}>
