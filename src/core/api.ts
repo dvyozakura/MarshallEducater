@@ -14,6 +14,7 @@ import { ensureDir } from './fsutil';
 import { getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { createPlan, getPlanView } from './plan';
 import { exportTestPdf, type TestPdfKind } from './print';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
@@ -111,6 +112,14 @@ export function createApi(core: AppCore) {
     },
   });
 
+  const startCreatePlan = defineJob<{ projectId: string; reason: string }>('create_plan', {
+    title: (p) => `学習計画の${p.reason ? '作り直し' : '作成'}`,
+    run: async (p, ctx) => {
+      const plan = await createPlan(core, p.projectId, p.reason, ctx);
+      return { weeks: plan.weeks.length, revision: plan.revision };
+    },
+  });
+
   return {
     // ───── アプリ全体 ─────
     appInfo: () => ({
@@ -204,6 +213,11 @@ export function createApi(core: AppCore) {
     /** 採点結果の上書き(score が null なら取り消し)。 */
     overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
       overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
+
+    // ───── 学習計画 ─────
+    getPlanView: (projectId: string) => getPlanView(core, projectId),
+    /** 学習計画を作る。reason を渡すと「作り直し」(理由を Claude に伝える)。 */
+    startCreatePlan: (projectId: string, reason = ''): JobInfo => startCreatePlan({ projectId, reason }),
 
     // ───── 志望校の傾向 ─────
     getTrendView: (projectId: string, subjectId: string) => getTrendView(core, projectId, subjectId),

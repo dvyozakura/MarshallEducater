@@ -596,6 +596,9 @@ table.grid th.num {
 .result-answers { margin: 8px 0; }
 .choices.plain { list-style: none; padding-left: 4px; }
 .choices.plain li { display: flex; gap: 6px; }
+.plan-week { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+.plan-week.current { border-color: var(--accent); background: #f7faff; }
+.plan-week table { margin-top: 6px; }
 .spark { color: var(--accent); vertical-align: middle; }
 table.grid td.miss { font-weight: 700; color: var(--low); background: #fff5f5; }
 .good-text { color: var(--good); }

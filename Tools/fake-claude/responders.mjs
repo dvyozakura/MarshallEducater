@@ -248,7 +248,34 @@ function trend({ input }) {
   };
 }
 
+/** 学習計画: 週ごとに、科目へ時間を等分し、弱い単元(無ければ先頭の単元)を割り当てる。モード short_weeks は週を1つ減らす。 */
+function plan({ input, mode }) {
+  const weeks = input.weeks.map((w, i) => {
+    const last = i === input.weeks.length - 1;
+    const budget = Math.floor((input.dailyMinutes * w.days * 0.8) / Math.max(1, input.subjects.length));
+    return {
+      theme: last ? '総復習と体調の調整' : w.mock ? '通しの模擬試験と、その復習' : i < input.weeks.length / 2 ? '苦手の克服と基礎固め' : '志望校の形式での演習',
+      items: input.subjects.map((s) => {
+        const weak = s.weakUnits.map((u) => u.unitId);
+        const pool = weak.length ? weak : s.units.map((u) => u.id);
+        return {
+          subjectId: s.id,
+          unitIds: [pool[i % pool.length], pool[(i + 1) % pool.length]].filter((v, k, a) => a.indexOf(v) === k),
+          minutes: budget,
+          goal: weak.length ? '弱い単元を標準レベルまで引き上げる' : '基本事項の確認',
+        };
+      }),
+    };
+  });
+  if (mode === 'short_weeks') weeks.pop();
+  return {
+    weeks,
+    advice: input.progress ? `作り直しました(理由: ${input.progress.reason})。量を減らし、弱い単元を優先します。` : `最初の計画です。${input.weeks.length} 週で、弱い単元から順に固めます。`,
+  };
+}
+
 const responders = {
+  plan,
   trend,
   grade,
   design_test: designTest,
