@@ -279,7 +279,7 @@ export const ProblemFormatSchema = z.enum(['choice', 'short', 'essay']);
 export type ProblemFormat = z.infer<typeof ProblemFormatSchema>;
 export const PROBLEM_FORMAT_LABEL: Record<ProblemFormat, string> = { choice: '選択式', short: '短答', essay: '記述' };
 
-export const ProblemOriginSchema = z.enum(['diagnostic', 'weakness', 'similar', 'review', 'mock', 'practice']);
+export const ProblemOriginSchema = z.enum(['diagnostic', 'weakness', 'similar', 'review', 'mock', 'practice', 'example', 'textbook']);
 export type ProblemOrigin = z.infer<typeof ProblemOriginSchema>;
 export const PROBLEM_ORIGIN_LABEL: Record<ProblemOrigin, string> = {
   diagnostic: '診断',
@@ -288,6 +288,8 @@ export const PROBLEM_ORIGIN_LABEL: Record<ProblemOrigin, string> = {
   review: '復習',
   mock: '模擬試験',
   practice: '演習',
+  example: '教材の例題',
+  textbook: '教材の確認問題',
 };
 
 /** Claude が作る1問(答えつき)。 */
@@ -361,6 +363,8 @@ export const TestSchema = z.object({
   /** 今日の課題の場合の日付。 */
   date: isoDate.nullable().default(null),
   status: TestStatusSchema.default('ready'),
+  /** 教材の章の確認問題のとき、その章の単元 ID。 */
+  chapterUnitId: z.string().nullable().default(null),
 });
 export type Test = z.infer<typeof TestSchema>;
 

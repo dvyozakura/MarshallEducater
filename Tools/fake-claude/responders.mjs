@@ -333,7 +333,94 @@ function chat({ input }) {
   return { answer: parts.join('\n\n') };
 }
 
+/**
+ * 教材の章の本文: 導入・要点・よくある誤り・例題のねらい。渡された条件(厚さ・未習・苦手・傾向・前後の章・作り直し)が分かる文を返す。
+ * モード with_figure は図を1つ付ける。bad_figure は崩れた図を付ける。
+ */
+function chapterBody({ input, mode }) {
+  const s = input.spec;
+  const figures = [];
+  if (mode === 'with_figure') figures.push({ id: 'fig1', svg: FAKE_SVG, caption: '直角三角形の図' });
+  if (mode === 'bad_figure') figures.push({ id: 'fig1', svg: '<svg><script>alert(1)</script></svg>', caption: '崩れた図' });
+  return {
+    intro: [
+      `第${input.chapter.no}章では「${input.chapter.unitName}」を学びます(${input.project.university} ${input.project.faculty} 向け・厚さ: ${s.thickness}${input.previous ? '・作り直し' : ''})。`,
+      input.previousChapter ? `前の章「${input.previousChapter}」の続きです。` : 'この教材の最初の章です。',
+      input.nextChapter ? `次の章は「${input.nextChapter}」です。` : 'この教材の最後の章です。',
+      input.trend ? '志望校の傾向を踏まえています。' : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    points: [
+      '### 基本の公式',
+      '',
+      '三平方の定理: $a^2 + b^2 = c^2$。直角三角形で、斜辺の長さを求めるときに使う。',
+      '',
+      ...(figures.length ? ['[[fig1]]', ''] : []),
+      input.unlearned ? '(未習の単元として、前提の確認から書いています)' : '(既習の単元として書いています)',
+      '',
+      `書き方の指示: ${s.style}`,
+      input.note ? '\n授業ノートの内容を踏まえています。' : '',
+    ].join('\n'),
+    pitfalls: input.weakness
+      ? `- 習熟度 ${input.weakness.mastery}(${input.weakness.attempts} 問)。間違えた問題 ${input.mistakes.length} 件を踏まえた注意: 2乗と2倍を取り違えない。`
+      : '- 2乗と2倍を取り違える。$3^2 = 9$ であって $6$ ではない。',
+    exampleFocus: s.examples.map((e, i) => `例題${i + 1}(${e.difficulty})のねらい`),
+    figures,
+  };
+}
+
+/** 教材の点検: ふつうは指摘なし。モード issues は「要点」に計算の誤りを1件、issues2 は「導入」と「よくある誤り」に1件ずつ指摘する。 */
+function chapterReview({ input, mode }) {
+  const first = Object.keys(input.sections)[0];
+  if (mode === 'issues') {
+    const section = input.target === 'supplement' ? 'supplement' : 'points';
+    return { issues: [{ section, quote: (input.sections[section] ?? '').slice(0, 20), problem: '計算の誤り: 式の値が合わない', fix: '正しい値に直す' }], comment: '計算の誤りが1件' };
+  }
+  if (mode === 'issues2') {
+    return {
+      issues: [
+        { section: 'intro', quote: '', problem: '用語の誤り', fix: '正しい用語にする' },
+        { section: 'pitfalls', quote: '', problem: '事実の誤り', fix: '正しい内容にする' },
+      ],
+      comment: '誤りが2件',
+    };
+  }
+  return { issues: [], comment: `誤りは見つからなかった(${first} ほか ${Object.keys(input.sections).length} 部分、例題 ${input.examples.length} 題と照合)` };
+}
+
+/** 教材の修正: 指摘のあった部分の末尾に、直した印を付けて返す。モード partial は、指摘のあった部分を返さない(やり直しの確認用)。 */
+function chapterRevise({ input, mode }) {
+  const out = { intro: null, points: null, pitfalls: null, supplement: null, figures: [] };
+  if (mode === 'partial') return out;
+  for (const section of new Set(input.issues.map((i) => i.section))) {
+    const n = input.issues.filter((i) => i.section === section).length;
+    out[section] = `${input.sections[section]}\n\n(点検の指摘 ${n} 件を反映して直しました)`;
+  }
+  return out;
+}
+
+/** 教材への補足: やりとりの数と、選んだ箇所が分かる補足を返す。 */
+function chapterSupplement({ input }) {
+  const questions = input.conversation.filter((m) => m.role === 'user');
+  const quote = questions.find((m) => m.quote)?.quote ?? null;
+  return {
+    title: `「${questions[0]?.text.slice(0, 20) ?? '質問'}」についての補足`,
+    markdown: [
+      `やりとり ${input.conversation.length} 件をもとにした補足です(章「${input.chapter.title}」、これまでの補足 ${input.chapter.supplements.length} 件)。`,
+      quote ? `選んだ箇所: 「${quote}」` : '',
+      '別の言い方をすると、$c = \\sqrt{a^2 + b^2}$ です。',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  };
+}
+
 const responders = {
+  chapter_body: chapterBody,
+  chapter_review: chapterReview,
+  chapter_revise: chapterRevise,
+  chapter_supplement: chapterSupplement,
   explain,
   note,
   chat,

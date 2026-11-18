@@ -18,6 +18,10 @@ export const PROMPT_KINDS = [
   'explain',
   'note',
   'chat',
+  'chapter_body',
+  'chapter_review',
+  'chapter_revise',
+  'chapter_supplement',
 ] as const;
 export type PromptKind = (typeof PROMPT_KINDS)[number];
 

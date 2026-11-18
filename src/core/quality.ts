@@ -1,6 +1,7 @@
 // 設定画面の「品質」欄: 検算の結果(採用・作り直し・破棄)、読み取りの補正率、採点の上書きの数。
 // 全プロジェクトのファイルを数えるだけで、Claude は呼ばない。
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AppCore } from './app';
 import { getGrading } from './grading';
 import type { SourcePaths } from './paths';
@@ -31,6 +32,8 @@ export interface Quality {
   answers: ReadingQuality;
   /** 採点の上書き。 */
   grading: { tests: number; items: number; overridden: number; rate: number | null };
+  /** 教材の点検(別の呼び出しでの事実・計算・用語の点検)。 */
+  textbook: { chapters: number; reviews: number; withIssues: number; issues: number; revised: number };
 }
 
 const pct = (part: number, whole: number): number | null => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
@@ -53,10 +56,33 @@ export function getQuality(core: AppCore): Quality {
   const problems: ReadingQuality = { sources: 0, originalChars: 0, changedChars: 0, edits: 0, rate: null };
   const answers: ReadingQuality = { sources: 0, originalChars: 0, changedChars: 0, edits: 0, rate: null };
   const grading = { tests: 0, items: 0, overridden: 0 };
+  const textbook = { chapters: 0, reviews: 0, withIssues: 0, issues: 0, revised: 0 };
   for (const p of listProjects(core).projects) {
     for (const s of p.subjects) {
       const sp = core.paths(p.id).subject(s.id);
       for (const src of listSources(core, p.id, s.id)) addCorrections(problems, sp.source(src.id));
+      // 教材: 点検の記録(章ごとの review/<単元ID>.json)。例題の検算の数は、検算の合計に足す
+      const reviewDir = join(sp.textbook.root, 'review');
+      for (const name of existsSync(reviewDir) ? readdirSync(reviewDir) : []) {
+        if (!name.endsWith('.json')) continue;
+        try {
+          const r = readData(join(reviewDir, name), Files.chapterReview);
+          textbook.chapters++;
+          for (const rec of r.records) {
+            textbook.reviews++;
+            textbook.issues += rec.issues.length;
+            if (rec.issues.length > 0) textbook.withIssues++;
+            if (rec.revised) textbook.revised++;
+            if (rec.verify) {
+              verify.adopted += rec.verify.adopted;
+              verify.regenerated += rec.verify.regenerated;
+              verify.discarded += rec.verify.discarded;
+            }
+          }
+        } catch {
+          /* 壊れた記録は数えない */
+        }
+      }
       for (const t of listTests(core, p.id, s.id)) {
         const v = getVerify(core, p.id, s.id, t.id);
         if (v) {
@@ -87,5 +113,6 @@ export function getQuality(core: AppCore): Quality {
     problems,
     answers,
     grading: { ...grading, rate: pct(grading.overridden, grading.items) },
+    textbook,
   };
 }

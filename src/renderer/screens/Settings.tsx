@@ -181,6 +181,21 @@ export function Settings() {
                   <div className="hint">補正率が低いほど、Claude の読み取りがそのまま使えています。</div>
                 </td>
               </tr>
+              <tr data-testid="q-textbook">
+                <th>教材の点検</th>
+                <td>
+                  {quality.textbook.reviews === 0 ? (
+                    'まだ教材の章を作っていません。'
+                  ) : (
+                    <>
+                      点検 <strong>{quality.textbook.reviews}</strong> 回のうち、指摘あり <strong>{quality.textbook.withIssues}</strong> 回(指摘 <strong>{quality.textbook.issues}</strong> 件、直した回数{' '}
+                      <strong>{quality.textbook.revised}</strong>){' '}
+                      <span className="muted">(点検の記録がある章 {quality.textbook.chapters} 章)</span>
+                    </>
+                  )}
+                  <div className="hint">教材の本文は、別の呼び出しで事実・計算・用語を点検し、指摘があれば1回直してから完成にしています。例題・確認問題の検算は、上の「問題の検算」に含まれます。</div>
+                </td>
+              </tr>
               <tr data-testid="q-grading">
                 <th>採点の上書き</th>
                 <td>

@@ -6,7 +6,7 @@ import type { JobInfo } from '../shared/jobs';
 import { PingOutputSchema, type AppSettings, type ChatContext, type ProjectInput, type UnitNode } from '../shared/schema';
 import { findUnit, SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
-import { callClaude } from './claude/task';
+import { callClaude, ClaudeError } from './claude/task';
 import { getTakeView, saveDraft, submitAnswers } from './answers';
 import * as C from './correction';
 import { createDaily, createScheduledMock, getReview, getTodayView, updateReviewFromGrading } from './daily';
@@ -21,7 +21,8 @@ import { getQuality } from './quality';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
-import { getTextbookView, setChapterRead, setChapterUnlearned } from './textbook';
+import { activeChapterJob, CHAPTER_JOB_KIND, getTextbookView, setChapterRead, setChapterUnlearned, syncToc } from './textbook';
+import { buildChapter, deferChapter, planBuildAll, setDeferred, takeDeferredForToday } from './textbook_build';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { getTrendView, updateTrend } from './trend';
 import { adjustUnits, getUnits, saveUnits } from './units';
@@ -164,6 +165,32 @@ export function createApi(core: AppCore) {
     },
   });
 
+  const chapterLabel = (projectId: string, subjectId: string, unitId: string) => {
+    const chapters = syncToc(core, projectId, subjectId).chapters.filter((c) => !c.orphan);
+    const i = chapters.findIndex((c) => c.unitId === unitId);
+    const name = (i >= 0 ? chapters[i].title : (findUnit(getUnits(core, projectId, subjectId).tree, unitId)?.name ?? unitId)).split(' > ').at(-1);
+    return i >= 0 ? `第${i + 1}章「${name}」` : `「${name}」`;
+  };
+
+  const startCreateChapterJob = defineJob<{ projectId: string; subjectId: string; unitId: string }>(CHAPTER_JOB_KIND, {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 教材 ${chapterLabel(p.projectId, p.subjectId, p.unitId)}`,
+    run: async (p, ctx) => {
+      try {
+        return await buildChapter(core, p.projectId, p.subjectId, p.unitId, ctx);
+      } catch (e) {
+        // 1日の上限で止まった章は、後日に回す(次の日に、続きから自動で作る)
+        if (e instanceof ClaudeError && e.kind === 'daily_limit') deferChapter(core, p.projectId, p.subjectId, p.unitId);
+        throw e;
+      }
+    },
+  });
+  /** 章を作る(作り直す)。同じ章のジョブがすでに並んでいれば、それを返す(二重に作らない)。 */
+  const startCreateChapter = (projectId: string, subjectId: string, unitId: string): JobInfo =>
+    activeChapterJob(core, projectId, subjectId, unitId) ?? startCreateChapterJob({ projectId, subjectId, unitId });
+  /** 後日に回した章のうち、今日作れる分のジョブを並べる。 */
+  const resumeDeferred = (projectId: string, subjectId: string): JobInfo[] =>
+    takeDeferredForToday(core, projectId, subjectId).map((unitId) => startCreateChapter(projectId, subjectId, unitId));
+
   return {
     // ───── アプリ全体 ─────
     appInfo: () => ({
@@ -277,7 +304,36 @@ export function createApi(core: AppCore) {
 
     // ───── 体系的な教材 ─────
     /** 「教材」タブの目次(章の状態・既読・未習・確認問題の結果)。 */
-    getTextbookView: (projectId: string, subjectId: string) => getTextbookView(core, projectId, subjectId),
+    getTextbookView: (projectId: string, subjectId: string) => {
+      resumeDeferred(projectId, subjectId);
+      return getTextbookView(core, projectId, subjectId);
+    },
+    /** 章を作る・作り直す(1章 = 1ジョブ)。 */
+    startCreateChapter,
+    /** 「まとめて作る」の見込み(未作成の章の数、呼び出しの見込み数、今日作れる数)。始める前に見せて確認を取る。 */
+    planBuildAll: (projectId: string, subjectId: string) => planBuildAll(core, projectId, subjectId),
+    /** 未作成の章を順にジョブへ入れる。1日の上限を超える分は翌日に回す(toc.json に残す)。 */
+    startBuildAll: (projectId: string, subjectId: string): { jobs: JobInfo[]; deferred: string[] } => {
+      const plan = planBuildAll(core, projectId, subjectId);
+      setDeferred(core, projectId, subjectId, plan.later);
+      return { jobs: plan.today.map((unitId) => startCreateChapter(projectId, subjectId, unitId)), deferred: plan.later };
+    },
+    /** 後日に回した章の予約を取り消す。 */
+    cancelDeferred: (projectId: string, subjectId: string): void => setDeferred(core, projectId, subjectId, []),
+    /** 全プロジェクトの、後日に回した章の続きを始める(起動時と、動いている間ときどき呼ぶ)。 */
+    resumeDeferredChapters: (): JobInfo[] => {
+      const jobs: JobInfo[] = [];
+      for (const p of listProjects(core).projects) {
+        for (const s of p.subjects) {
+          try {
+            jobs.push(...resumeDeferred(p.id, s.id));
+          } catch {
+            /* 壊れた科目があっても、ほかの科目は続ける */
+          }
+        }
+      }
+      return jobs;
+    },
     setChapterRead: (projectId: string, subjectId: string, unitId: string, read: boolean) => setChapterRead(core, projectId, subjectId, unitId, read),
     setChapterUnlearned: (projectId: string, subjectId: string, unitId: string, unlearned: boolean) => setChapterUnlearned(core, projectId, subjectId, unitId, unlearned),
 

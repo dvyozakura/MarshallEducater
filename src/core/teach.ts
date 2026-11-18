@@ -211,7 +211,7 @@ export function getNote(core: AppCore, projectId: string, subjectId: string, uni
 }
 
 /** その単元で間違えた問題(新しい順)。授業ノートの「よくある誤り」の材料。 */
-function unitMistakes(core: AppCore, projectId: string, subjectId: string, unitId: string): Array<{ body: string; mistake: string | null; comment: string }> {
+export function unitMistakes(core: AppCore, projectId: string, subjectId: string, unitId: string): Array<{ body: string; mistake: string | null; comment: string }> {
   const out: Array<{ body: string; mistake: string | null; comment: string; at: string }> = [];
   for (const t of listTests(core, projectId, subjectId)) {
     if (t.status !== 'graded') continue;

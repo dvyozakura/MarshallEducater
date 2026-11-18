@@ -127,6 +127,17 @@ void app.whenReady().then(() => {
   core.jobs.on('change', (job) => broadcast({ type: 'job', job }));
   core.jobs.on('cleared', () => broadcast({ type: 'jobs-cleared' }));
 
+  // 教材の「まとめて作る」で翌日以降に回した章の続きを、起動時と 10 分ごとに並べる(その日の上限のぶんだけ)
+  const resumeDeferred = () => {
+    try {
+      api.resumeDeferredChapters();
+    } catch {
+      /* データの場所が読めないときなどは、次の機会に */
+    }
+  };
+  setTimeout(resumeDeferred, 5000);
+  setInterval(resumeDeferred, 10 * 60 * 1000);
+
   createWindow();
 });
 

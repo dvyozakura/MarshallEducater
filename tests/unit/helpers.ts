@@ -140,6 +140,7 @@ export function putTest(t: TestCore, projectId: string, subjectId: string, testI
     createdAt: new Date().toISOString(),
     date: null,
     status: 'ready',
+    chapterUnitId: null,
   });
 }
 

@@ -33,6 +33,8 @@ export interface ProblemRequest {
   reference?: string | null;
   /** 復習のとき: もとの問題。 */
   reviewOf?: { testId: string; problemId: string } | null;
+  /** この問題のねらい(教材の例題で、何を身につけさせるか)。 */
+  focus?: string | null;
 }
 
 export interface GenerateArgs {
@@ -134,6 +136,7 @@ async function generate(env: Env, requests: Array<ProblemRequest & { avoid?: { b
         origin: PROBLEM_ORIGIN_LABEL[q.origin],
         mistake: q.mistake ? MISTAKE_LABEL[q.mistake] : null,
         reference: q.reference ?? null,
+        focus: q.focus ?? null,
         avoid: q.avoid ?? null,
         noFigure: q.noFigure ?? false,
       })),

@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { todayString } from '../shared/dates';
 import { FORMAT_VERSION, AppSettingsSchema, type AppSettings } from '../shared/schema';
 import { DailyLimiter } from './claude/limiter';
 import type { ClaudeSettings } from './claude/runner';
@@ -111,7 +112,8 @@ export class AppCore {
 
   /** 1日の上限の数え役。データの場所が設定で変わっても追えるよう、毎回いまの場所で作る。 */
   get limiter(): DailyLimiter {
-    return new DailyLimiter(join(this.dataDir(), 'usage.json'), () => this.settings.dailyLimit);
+    // 日付は todayString() に合わせる(テストでは ME_TODAY で差し替えられる)
+    return new DailyLimiter(join(this.dataDir(), 'usage.json'), () => this.settings.dailyLimit, () => new Date(`${todayString()}T12:00:00`));
   }
 
   claudeEnv(): ClaudeEnv {

@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { FORMAT_VERSION, type AnswerKey, type Problem, type Test, type TestKind, type Verify, type VerifyOutcome } from '../shared/schema';
 import type { AppCore } from './app';
 import { newId } from './fsutil';
-import { generateVerified, type ProblemRequest } from './generate';
+import { generateVerified, type ProblemRequest, type VerifiedProblem, type VerifyEvent } from './generate';
 import type { JobContext } from './jobs';
 import { listProjects } from './projects';
 import { Files, readData, writeData } from './store';
@@ -19,6 +19,8 @@ export interface TestPlan {
   requests: ProblemRequest[];
   /** 今日の課題の場合の日付。 */
   date?: string | null;
+  /** 教材の章の確認問題のとき、その章の単元 ID。 */
+  chapterUnitId?: string | null;
 }
 
 function checkTestId(id: string): void {
@@ -36,6 +38,20 @@ export async function createTest(core: AppCore, projectId: string, subjectId: st
   if (result.problems.length === 0) {
     throw new Error(`検算に通る問題を1つも作れませんでした(作り直し ${result.counts.regenerated}、破棄 ${result.counts.discarded})。もう一度試してください。`);
   }
+  return saveTest(core, projectId, subjectId, plan, result);
+}
+
+/** 検算を通った問題を、テストとして保存する(test.json、answer_key.json、verify.json)。 */
+export function saveTest(
+  core: AppCore,
+  projectId: string,
+  subjectId: string,
+  plan: Omit<TestPlan, 'requests' | 'purpose'>,
+  result: { problems: Array<VerifiedProblem & { slot: number }>; events: VerifyEvent[] },
+): Test {
+  if (result.problems.length === 0) throw new Error('保存する問題がありません');
+  const counts: Record<VerifyOutcome, number> = { adopted: 0, regenerated: 0, discarded: 0 };
+  for (const e of result.events) counts[e.outcome]++;
   const testId = newId('test');
   const tp = testPaths(core, projectId, subjectId, testId);
   const idOf = (i: number) => `p${String(i + 1).padStart(2, '0')}`;
@@ -63,7 +79,7 @@ export async function createTest(core: AppCore, projectId: string, subjectId: st
     version: FORMAT_VERSION,
     testId,
     records: result.events.map((e) => ({ problemId: e.outcome === 'discarded' ? null : (slotToId.get(e.slot) ?? null), unitId: e.unitId, outcome: e.outcome, reason: e.reason })),
-    counts: result.counts,
+    counts,
   };
   // 答えと検算の記録を先に書き、最後に test.json を書く(test.json があれば、そろっている)
   writeData(tp.answerKeyJson, Files.answerKey, key);
@@ -80,6 +96,7 @@ export async function createTest(core: AppCore, projectId: string, subjectId: st
     createdAt: new Date().toISOString(),
     date: plan.date ?? null,
     status: 'ready',
+    chapterUnitId: plan.chapterUnitId ?? null,
   });
 }
 
