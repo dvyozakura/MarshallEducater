@@ -272,6 +272,49 @@ export interface TextbookView {
   otherNotes: Array<{ unitId: string; updatedAt: string }>;
 }
 
+export interface ChapterView {
+  subjectName: string;
+  /** 目次の行(状態・既読・未習・確認問題の結果など)。 */
+  row: TextbookChapterView;
+  /** 章の中身。まだ作っていなければ null。 */
+  chapter: Chapter | null;
+  prev: { unitId: string; no: number; name: string; status: ChapterStatus } | null;
+  next: { unitId: string; no: number; name: string; status: ChapterStatus } | null;
+  /** いちばん新しい点検の記録。 */
+  review: ChapterReview['records'][number] | null;
+  /** 残してある前の版の番号。 */
+  versions: number[];
+}
+
+/** 章を読む画面の内容。 */
+export function getChapterView(core: AppCore, projectId: string, subjectId: string, unitId: string): ChapterView {
+  const view = getTextbookView(core, projectId, subjectId);
+  const row = view.chapters.find((c) => c.unitId === unitId);
+  if (!row) throw new Error('その単元の章は、目次にありません。');
+  const ordered = view.chapters.filter((c) => !c.orphan);
+  const i = ordered.findIndex((c) => c.unitId === unitId);
+  const brief = (c: TextbookChapterView | undefined) => (c ? { unitId: c.unitId, no: c.no, name: c.name, status: c.status } : null);
+  const tb = textbookPaths(core, projectId, subjectId);
+  const versionsDir = join(tb.root, 'versions');
+  const prefix = `${chapterFileId(unitId)}.v`;
+  const versions = existsSync(versionsDir)
+    ? readdirSync(versionsDir)
+        .filter((f) => f.startsWith(prefix) && f.endsWith('.json'))
+        .map((f) => Number(f.slice(prefix.length, -5)))
+        .filter((n) => Number.isInteger(n))
+        .sort((a, b) => a - b)
+    : [];
+  return {
+    subjectName: view.subjectName,
+    row,
+    chapter: getChapter(core, projectId, subjectId, unitId),
+    prev: i > 0 ? brief(ordered[i - 1]) : null,
+    next: i >= 0 ? brief(ordered[i + 1]) : null,
+    review: getChapterReview(core, projectId, subjectId, unitId)?.records.at(-1) ?? null,
+    versions,
+  };
+}
+
 /** 「教材」タブの目次。 */
 export function getTextbookView(core: AppCore, projectId: string, subjectId: string): TextbookView {
   const subject = getSubject(getProject(core, projectId), subjectId);

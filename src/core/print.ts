@@ -2,12 +2,14 @@
 import { existsSync } from 'node:fs';
 import { choiceMark } from '../shared/labels';
 import { renderMarkdown, svgToImgHtml } from '../shared/mdmath';
-import { DIFFICULTY_LABEL, MISTAKE_LABEL, PROBLEM_FORMAT_LABEL, type AnswerKey, type Explanations, type Grading, type Reading, type Test } from '../shared/schema';
+import { splitFigures } from '../shared/chapter';
+import { DIFFICULTY_LABEL, MISTAKE_LABEL, PROBLEM_FORMAT_LABEL, type AnswerKey, type Chapter, type ChapterFigure, type Explanations, type Grading, type Reading, type Test } from '../shared/schema';
 import { getReading } from './answers';
 import type { AppCore } from './app';
 import { effectiveScore, getAnswerKey, getGrading } from './grading';
 import { getProject, getSubject } from './projects';
 import { Files, readData } from './store';
+import { chapterFileId, getChapter, getTextbookView, textbookPaths } from './textbook';
 import { getTest, testPaths } from './tests';
 
 /** main 側が、KaTeX の CSS の場所に置き換える目印。 */
@@ -125,6 +127,91 @@ export function explanationsHtml(test: Test, subjectName: string, grading: Gradi
     ${secs}
     <div class="footer">MarshallEducater で作成(解説は Claude が書いたものです)</div>`,
   );
+}
+
+// ───────── 教材 ─────────
+
+function bodyHtml(text: string, figures: ChapterFigure[]): string {
+  return splitFigures(text, figures)
+    .map((part) => (part.type === 'text' ? renderMarkdown(part.text) : `${svgToImgHtml(part.figure.svg, part.figure.caption || '図')}${part.figure.caption ? `<div class="cap">${esc(part.figure.caption)}</div>` : ''}`))
+    .join('\n');
+}
+
+/** 教材の1章ぶん(導入 → 要点 → 例題 → よくある誤り →(補足)→ 確認問題)。 */
+function chapterSectionHtml(ch: Chapter, no: number): string {
+  const name = ch.title.split(' > ').at(-1) ?? ch.title;
+  const choices = (list: string[]) => (list.length ? `<ul class="choices">${list.map((c, i) => `<li><span>${choiceMark(i)}</span><span>${renderMarkdown(c)}</span></li>`).join('')}</ul>` : '');
+  const answer = (e: Chapter['examples'][number]) => {
+    const n = Number(e.answer.normalize('NFKC').match(/\d+/)?.[0] ?? NaN);
+    return e.format === 'choice' && Number.isFinite(n) && e.choices[n - 1] !== undefined ? `${choiceMark(n - 1)} ${e.choices[n - 1]}` : e.answer;
+  };
+  const examples = ch.examples
+    .map(
+      (e, i) => `<div class="ex"><div class="q-head">例題${i + 1}<span class="pts">(${DIFFICULTY_LABEL[e.difficulty]}・${PROBLEM_FORMAT_LABEL[e.format]})</span></div>
+      ${e.focus.trim() ? `<div class="focus">ねらい: ${esc(e.focus.trim())}</div>` : ''}
+      ${renderMarkdown(e.body)}${e.figureSvg ? svgToImgHtml(e.figureSvg) : ''}${choices(e.choices)}
+      <h3>解答</h3>${renderMarkdown(answer(e))}
+      <h3>解説</h3>${renderMarkdown(e.solution || '(解説なし)')}</div>`,
+    )
+    .join('\n');
+  const supplements = ch.supplements.length
+    ? `<h2>補足(質問から)</h2>${ch.supplements.map((s) => `<h3>${esc(s.title)}</h3>${renderMarkdown(s.markdown)}`).join('\n')}`
+    : '';
+  const quiz = ch.quiz.length
+    ? ch.quiz
+        .map(
+          (q, i) => `<div class="q"><div class="q-head">確認問題 ${i + 1}<span class="pts">(${q.points} 点・${PROBLEM_FORMAT_LABEL[q.format]}・${DIFFICULTY_LABEL[q.difficulty]})</span></div>
+          ${renderMarkdown(q.body)}${q.figureSvg ? svgToImgHtml(q.figureSvg) : ''}${choices(q.choices)}</div>`,
+        )
+        .join('\n')
+    : '<p>(この版には、確認問題がありません)</p>';
+  return `<article class="chapter">
+    <h1>${no > 0 ? `第${no}章 ` : ''}${esc(name)}</h1>
+    <div class="meta">${esc(ch.title)} / 第 ${ch.chapterVersion} 版(${esc(ch.updatedAt.slice(0, 10))})</div>
+    <h2>導入</h2>${bodyHtml(ch.intro, ch.figures)}
+    <h2>要点</h2>${bodyHtml(ch.points, ch.figures)}
+    <h2>例題</h2>${examples}
+    <h2>よくある誤り</h2>${bodyHtml(ch.pitfalls, ch.figures)}
+    ${supplements}
+    <h2>確認問題</h2>${quiz}
+    <div class="footer">確認問題の答え合わせは、アプリの「確認問題を解く」から行います(採点して苦手マップに反映します)。</div>
+  </article>`;
+}
+
+const TEXTBOOK_CSS = `
+  .chapter { page-break-after: always; }
+  .chapter:last-of-type { page-break-after: auto; }
+  .chapter h2 { font-size: 13pt; margin: 14pt 0 4pt; border-bottom: 1px solid #000; }
+  .chapter h3 { font-size: 11pt; margin: 8pt 0 2pt; }
+  .ex { border: 1px solid #000; padding: 6pt 10pt; margin: 0 0 10pt; }
+  .focus { font-size: 9.5pt; color: #333; }
+  .cap { font-size: 9pt; color: #333; margin: 0 0 6pt; }
+  .toc { margin: 0 0 14pt; padding-left: 0; list-style: none; page-break-after: always; }
+`;
+
+/** 教材の章(1章だけ、または科目全体)を、印刷用の HTML にする。 */
+export function textbookHtml(subjectName: string, chapters: Array<{ chapter: Chapter; no: number }>, whole: boolean): string {
+  const title = whole ? `${subjectName} 教材` : `${subjectName} 教材 ${chapters[0] ? `第${chapters[0].no}章` : ''}`;
+  const toc = whole
+    ? `<h1>${esc(subjectName)} 教材</h1><div class="meta">作成済みの章: ${chapters.length} 章</div><ul class="toc">${chapters.map((c) => `<li>第${c.no}章 ${esc(c.chapter.title)}</li>`).join('')}</ul>`
+    : '';
+  return htmlPage(title, `<style>${TEXTBOOK_CSS}</style>${toc}${chapters.map((c) => chapterSectionHtml(c.chapter, c.no)).join('\n')}<div class="footer">MarshallEducater で作成(本文は Claude が書き、別の呼び出しで点検したものです。例題と確認問題は検算済みです)</div>`);
+}
+
+/** 教材を PDF にして、textbook/pdf/ に保存する。unitId を渡すとその章だけ、null なら作成済みの章すべて。保存した場所を返す。 */
+export async function exportTextbookPdf(core: AppCore, projectId: string, subjectId: string, unitId: string | null): Promise<{ path: string; chapters: number }> {
+  if (!core.printPdf) throw new Error('PDF の出力は、アプリの中でだけ使えます。');
+  const view = getTextbookView(core, projectId, subjectId);
+  const tb = textbookPaths(core, projectId, subjectId);
+  const rows = view.chapters.filter((c) => c.chapterVersion > 0 && (unitId === null ? !c.orphan : c.unitId === unitId));
+  const chapters = rows
+    .map((r) => ({ chapter: getChapter(core, projectId, subjectId, r.unitId), no: r.no }))
+    .filter((c): c is { chapter: Chapter; no: number } => c.chapter !== null);
+  if (chapters.length === 0) throw new Error(unitId === null ? 'まだ作った章がありません。先に章を作ってください。' : 'この章は、まだ作っていません。');
+  const out = unitId === null ? tb.allPdf : tb.chapterPdf(chapterFileId(unitId));
+  await core.printPdf(textbookHtml(view.subjectName, chapters, unitId === null), out);
+  if (!existsSync(out)) throw new Error('PDF を保存できませんでした。');
+  return { path: out, chapters: chapters.length };
 }
 
 export type TestPdfKind = 'booklet' | 'answer_sheet' | 'explanations';

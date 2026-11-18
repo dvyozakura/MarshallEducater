@@ -16,12 +16,12 @@ import { getGrading, getResultView, gradeTest, gradingTotals, onGraded, override
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
 import { createPlan, getPlanView } from './plan';
-import { exportTestPdf, type TestPdfKind } from './print';
+import { exportTestPdf, exportTextbookPdf, type TestPdfKind } from './print';
 import { getQuality } from './quality';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
-import { activeChapterJob, CHAPTER_JOB_KIND, getTextbookView, setChapterRead, setChapterUnlearned, syncToc } from './textbook';
+import { activeChapterJob, CHAPTER_JOB_KIND, getChapterView, getTextbookView, setChapterRead, setChapterUnlearned, syncToc } from './textbook';
 import { buildChapter, deferChapter, planBuildAll, setDeferred, takeDeferredForToday } from './textbook_build';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { getTrendView, updateTrend } from './trend';
@@ -308,6 +308,10 @@ export function createApi(core: AppCore) {
       resumeDeferred(projectId, subjectId);
       return getTextbookView(core, projectId, subjectId);
     },
+    /** 章を読む画面の内容(章の中身、前後の章、点検の記録)。 */
+    getChapterView: (projectId: string, subjectId: string, unitId: string) => getChapterView(core, projectId, subjectId, unitId),
+    /** 教材を PDF に出す。unitId が null なら、作成済みの章すべて(科目全体)。 */
+    exportTextbookPdf: (projectId: string, subjectId: string, unitId: string | null) => exportTextbookPdf(core, projectId, subjectId, unitId),
     /** 章を作る・作り直す(1章 = 1ジョブ)。 */
     startCreateChapter,
     /** 「まとめて作る」の見込み(未作成の章の数、呼び出しの見込み数、今日作れる数)。始める前に見せて確認を取る。 */

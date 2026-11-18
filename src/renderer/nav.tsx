@@ -12,6 +12,7 @@ export type Route =
   | { screen: 'take'; projectId: string; subjectId: string; testId: string }
   | { screen: 'result'; projectId: string; subjectId: string; testId: string }
   | { screen: 'chat'; projectId: string; subjectId: string; chatId?: string; testId?: string; problemId?: string; unitId?: string }
+  | { screen: 'chapter'; projectId: string; subjectId: string; unitId: string }
   | { screen: 'plan'; projectId: string }
   | { screen: 'jobs'; projectId?: string }
   | { screen: 'settings'; projectId?: string };

@@ -7,12 +7,14 @@ import { ChatsTab } from './subject/ChatsTab';
 import { NotesTab } from './subject/NotesTab';
 import { SourcesTab } from './subject/SourcesTab';
 import { TestsTab } from './subject/TestsTab';
+import { TextbookTab } from './subject/TextbookTab';
 import { TrendTab } from './subject/TrendTab';
 import { UnitsTab } from './subject/UnitsTab';
 import { WeaknessTab } from './subject/WeaknessTab';
 
 export const SUBJECT_TABS = [
   { id: 'tests', label: 'テストと課題' },
+  { id: 'textbook', label: '教材' },
   { id: 'sources', label: '資料' },
   { id: 'weakness', label: '苦手マップ' },
   { id: 'trend', label: '傾向' },
@@ -53,6 +55,7 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
       </div>
       <div data-testid={`tabpanel-${current}`}>
         {current === 'tests' && <TestsTab {...props} />}
+        {current === 'textbook' && <TextbookTab {...props} />}
         {current === 'sources' && <SourcesTab {...props} />}
         {current === 'weakness' && <WeaknessTab {...props} />}
         {current === 'trend' && <TrendTab {...props} />}
