@@ -25,6 +25,52 @@ async function selectInPoints(page: Page, phrase: string) {
   }, phrase);
 }
 
+/** from を含む文字の先頭から、to を含む文字の終わりまでを選ぶ(間に数式をはさむ選び方)。 */
+async function selectAcross(page: Page, from: string, to: string) {
+  await page.evaluate(
+    ([a, b]) => {
+      const root = document.querySelector('[data-testid="chapter-points"]')!;
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let start: Node | null = null;
+      let end: Node | null = null;
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        if (!start && node.textContent!.includes(a)) start = node;
+        else if (start && node.textContent!.includes(b)) {
+          end = node;
+          break;
+        }
+      }
+      if (!start || !end) throw new Error('選ぶ範囲が見つかりません');
+      const range = document.createRange();
+      range.setStart(start, start.textContent!.indexOf(a));
+      range.setEnd(end, end.textContent!.indexOf(b) + b.length);
+      const sel = window.getSelection()!;
+      sel.removeAllRanges();
+      sel.addRange(range);
+      end.parentElement!.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+    },
+    [from, to],
+  );
+}
+
+test('教材への質問: 数式をはさんで選ぶと、引用は元の式($...$)になる', async () => {
+  const t = await launchApp();
+  const { page } = t;
+  await createProject(page, { university: 'ダミー大学', faculty: '理学部', examDate: '2027-02-25', subjects: ['数学II・B・C'] });
+  await page.getByTestId('subject-card').click();
+  await page.getByTestId('tab-textbook').click();
+  const first = page.getByTestId('tb-row').first();
+  await first.getByTestId('tb-create').click();
+  await expect(first.getByTestId('tb-status')).toHaveText('完成', { timeout: 15000 });
+  await first.getByTestId('tb-open').click();
+  await expect(page.getByTestId('chapter-points').locator('.katex').first()).toBeVisible();
+  await selectAcross(page, '三平方の定理', '直角三角形');
+  await page.getByTestId('ask-here').click();
+  await expect(page.getByTestId('tchat-quote')).toContainText('三平方の定理: $a^2 + b^2 = c^2$。直角三角形');
+  await t.app.close();
+});
+
 test('教材への質問: 文章を選んで「ここを質問」→ 2往復 → 再起動後も会話が残る → 教材に反映で章が更新される。科目全体の質問もできる', async () => {
   let t = await launchApp();
   let page = t.page;

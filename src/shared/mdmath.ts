@@ -33,7 +33,9 @@ export interface MathSegment {
 /** 数式を1つ HTML にする。書き方が誤っていても例外にせず、赤字で元の式を見せる。 */
 export function renderMath(tex: string, display: boolean): string {
   try {
-    return katex.renderToString(tex, { displayMode: display, throwOnError: true, strict: 'ignore', output: 'html' });
+    const html = katex.renderToString(tex, { displayMode: display, throwOnError: true, strict: 'ignore', output: 'html' });
+    // 元の式を残す(教材の「ここを質問」で、選んだ数式を $...$ に戻して引用するため)
+    return html.replace(/^<span class="(katex(?:-display)?)"/, `<span class="$1" data-tex="${escapeHtml(tex)}" data-display="${display ? '1' : '0'}"`);
   } catch (e) {
     const msg = e instanceof Error ? e.message.replace(/^KaTeX parse error: /, '') : String(e);
     return `<span class="math-error" title="${escapeHtml(msg)}">${escapeHtml(display ? `$$${tex}$$` : `$${tex}$`)}</span>`;

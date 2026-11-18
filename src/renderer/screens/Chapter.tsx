@@ -30,6 +30,33 @@ function Body({ text, figures, testId }: { text: string; figures: ChapterFigure[
   );
 }
 
+/**
+ * 選んだ範囲の文字列。数式(KaTeX)は表示用の文字のままだと崩れるので、元の式($...$)に戻す。
+ * 数式の途中から選んだときも、その数式全体を引用する。
+ */
+export function selectedSource(range: Range): string {
+  const frag = range.cloneContents();
+  for (const el of Array.from(frag.querySelectorAll<HTMLElement>('[data-tex]'))) {
+    // 外側(katex-display)と内側(katex)の両方に印があるときは、外側だけ置き換える
+    if (el.parentElement?.closest('[data-tex]')) continue;
+    const tex = el.dataset.tex ?? '';
+    el.replaceWith(el.dataset.display === '1' ? `$$${tex}$$` : `$${tex}$`);
+  }
+  // 1つの数式の中だけを選んだときは、frag に数式の印が入らないので、その数式全体を返す
+  const el = range.commonAncestorContainer;
+  const inside = (el.nodeType === Node.ELEMENT_NODE ? (el as Element) : el.parentElement)?.closest<HTMLElement>('[data-tex]');
+  if (inside) {
+    const outer = inside.parentElement?.closest<HTMLElement>('[data-tex]') ?? inside;
+    return outer.dataset.display === '1' ? `$$${outer.dataset.tex}$$` : `$${outer.dataset.tex}$`;
+  }
+  // 範囲の両端が数式の途中でも、cloneContents は途中の要素を印ごと写すので、上で式全体に置き換わる
+  return (frag.textContent ?? '')
+    .split('\n')
+    .map((l) => l.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
 function exampleAnswer(e: ChapterExample): string {
   if (e.format !== 'choice') return e.answer;
   const n = Number(e.answer.normalize('NFKC').match(/\d+/)?.[0] ?? NaN);
@@ -92,7 +119,7 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
   /** 本文の文章を選んだら、「ここを質問」のボタンを出す。 */
   const onSelect = () => {
     const s = window.getSelection();
-    const text = s?.toString().trim() ?? '';
+    const text = s && s.rangeCount > 0 ? selectedSource(s.getRangeAt(0)) : '';
     if (!s || !text || s.rangeCount === 0 || !bodyRef.current?.contains(s.anchorNode)) return setSel(null);
     const r = s.getRangeAt(0).getBoundingClientRect();
     setSel({ text, x: Math.max(8, r.left), y: Math.max(8, r.top - 36) });
