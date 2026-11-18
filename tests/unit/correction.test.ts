@@ -6,9 +6,9 @@ import { buildPrompt } from '../../src/core/claude/prompts';
 import { charDiff, listConfirmedSources, requireConfirmedProblems } from '../../src/core/correction';
 import { modeInstructions } from '../../src/core/reading';
 import { sourcePaths } from '../../src/core/sources';
-import { Files, readData, writeData } from '../../src/core/store';
-import { FORMAT_VERSION, RereadOutputSchema, type Test } from '../../src/shared/schema';
-import { done, importFake, makeCore, sampleInput, type TestCore } from './helpers';
+import { Files, readData } from '../../src/core/store';
+import { RereadOutputSchema } from '../../src/shared/schema';
+import { done, importFake, makeCore, putTest, sampleInput } from './helpers';
 
 async function setup(pages = 2, control: unknown = {}) {
   const t = makeCore(control);
@@ -18,37 +18,6 @@ async function setup(pages = 2, control: unknown = {}) {
   await done(t, t.api.startReadSource(p.id, sid, sourceId));
   const ids = [p.id, sid, sourceId] as const;
   return { t, p, sid, sourceId, ids };
-}
-
-/** 手でテストを1つ置く(テスト作成の仕組みを通さない最小のもの)。 */
-export function putTest(t: TestCore, projectId: string, subjectId: string, testId = 'test-1'): Test {
-  const tp = t.core.paths(projectId).subject(subjectId).test(testId);
-  const problem = (n: number) => ({
-    id: `p${n}`,
-    number: `問${n}`,
-    unitId: 'u01-01',
-    unitName: '単元',
-    difficulty: 'standard' as const,
-    format: 'short' as const,
-    body: `問題 ${n}`,
-    choices: [],
-    points: 10,
-    figureSvg: null,
-    origin: 'diagnostic' as const,
-  });
-  return writeData(tp.testJson, Files.test, {
-    version: FORMAT_VERSION,
-    id: testId,
-    subjectId,
-    kind: 'diagnostic',
-    title: 'ダミーのテスト',
-    timeLimitMin: 30,
-    instructions: '',
-    problems: [problem(1), problem(2)],
-    createdAt: new Date().toISOString(),
-    date: null,
-    status: 'ready',
-  });
 }
 
 describe('直した文字数の目安', () => {

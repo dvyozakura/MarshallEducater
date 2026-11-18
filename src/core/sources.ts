@@ -50,6 +50,7 @@ export function importBegin(core: AppCore, projectId: string, subjectId: string,
     id = submissionSourceId(info.testId);
     const tp = core.paths(projectId).subject(subjectId).test(info.testId);
     if (!existsSync(tp.testJson)) throw new Error('答案を出す先のテストが見つかりません');
+    if (readData(tp.testJson, Files.test).status === 'graded') throw new Error('このテストは採点済みです。答案の出し直しはできません。');
     // 出し直しのときは、前の答案を消してから入れ直す
     rmSync(tp.submission.root, { recursive: true, force: true });
   } else {
@@ -96,7 +97,17 @@ export function importFinish(core: AppCore, projectId: string, subjectId: string
   for (let n = 1; n <= pageCount; n++) {
     if (!existsSync(paths.page(n))) throw new Error(`ページ ${n} の画像が保存されていません`);
   }
-  return writeData(paths.sourceJson, Files.source, { ...meta, pageCount });
+  const done = writeData(paths.sourceJson, Files.source, { ...meta, pageCount });
+  // 紙の答案を出した: テストは「答案の読み取り・補正中」になる。前に出した答案(アプリ内の入力を含む)は使わない
+  const testId = testIdOfSubmission(sourceId);
+  if (testId) {
+    const tp = core.paths(projectId).subject(subjectId).test(testId);
+    rmSync(tp.readingJson, { force: true });
+    rmSync(tp.draftJson, { force: true });
+    const test = readData(tp.testJson, Files.test);
+    writeData(tp.testJson, Files.test, { ...test, status: 'reading' });
+  }
+  return done;
 }
 
 export function getSource(core: AppCore, projectId: string, subjectId: string, sourceId: string): SourceMeta {
@@ -131,6 +142,15 @@ export function deleteSource(core: AppCore, projectId: string, subjectId: string
   const paths = sourcePaths(core, projectId, subjectId, sourceId);
   if (!existsSync(paths.sourceJson)) return;
   rmSync(paths.root, { recursive: true, force: true });
+  // 紙の答案を取り消したら、テストは「未提出」に戻す
+  const testId = testIdOfSubmission(sourceId);
+  if (testId) {
+    const tp = core.paths(projectId).subject(subjectId).test(testId);
+    if (existsSync(tp.testJson)) {
+      const test = readData(tp.testJson, Files.test);
+      if (test.status === 'reading') writeData(tp.testJson, Files.test, { ...test, status: 'ready' });
+    }
+  }
 }
 
 /** ページ画像(PNG)の中身を返す(画面での表示用)。 */

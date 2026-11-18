@@ -2,16 +2,11 @@ import { existsSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { buildPrompt } from '../../src/core/claude/prompts';
 import { checkGenerated, choiceNumber, generateVerified, normalizeAnswer, type ProblemRequest } from '../../src/core/generate';
-import type { JobContext } from '../../src/core/jobs';
 import { Files, readData } from '../../src/core/store';
 import { createTest, getVerify, listTests, verifyTotals, type TestPlan } from '../../src/core/tests';
 import { GenerateOutputSchema, JudgeOutputSchema, SolveOutputSchema, type GeneratedProblem } from '../../src/shared/schema';
-import { makeCore, sampleInput } from './helpers';
+import { makeCore, sampleInput, testCtx } from './helpers';
 
-export const testCtx = (): JobContext & { log: string[] } => {
-  const log: string[] = [];
-  return { signal: new AbortController().signal, progress: (t) => log.push(t), log };
-};
 
 const REQUESTS: ProblemRequest[] = [
   { unitId: 'u01-01', difficulty: 'easy', format: 'choice', origin: 'diagnostic' },

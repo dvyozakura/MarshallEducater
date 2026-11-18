@@ -136,6 +136,7 @@ export const Files = {
   answerKey: def('answer_key.json', S.AnswerKeySchema),
   verify: def('verify.json', S.VerifySchema),
   reading: def('reading.json', S.ReadingSchema),
+  draft: def('draft.json', S.DraftSchema),
   grading: def('grading.json', S.GradingSchema),
   trend: def('trend.json', S.TrendSchema),
   plan: def('plan.json', S.PlanSchema),

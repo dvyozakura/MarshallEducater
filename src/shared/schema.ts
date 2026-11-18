@@ -437,6 +437,20 @@ export const ReadingSchema = z.object({
 });
 export type Reading = z.infer<typeof ReadingSchema>;
 
+/** アプリ内で解いている途中の控え(画面を離れても消えないように保存する)。 */
+export const DraftSchema = z.object({
+  version: z.number().int(),
+  testId: z.string(),
+  /** 問題 ID → いま入力されている答え。 */
+  answers: z.record(z.string(), z.string()),
+  startedAt: z.string(),
+  /** これまでに使った時間(秒)。 */
+  elapsedSec: z.number().min(0),
+  /** 制限時間を過ぎたあと、延長して続けているか。 */
+  extended: z.boolean().default(false),
+});
+export type Draft = z.infer<typeof DraftSchema>;
+
 // ───────── 採点 ─────────
 export const GradeItemOutputSchema = z.object({
   problemId: z.string(),

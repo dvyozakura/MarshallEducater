@@ -3,8 +3,10 @@ import { dirname, join, resolve } from 'node:path';
 import { AppCore } from '../../src/core/app';
 import { createApi, type Api } from '../../src/core/api';
 import type { ClaudeSettings } from '../../src/core/claude/runner';
+import type { JobContext } from '../../src/core/jobs';
 import type { JobInfo } from '../../src/shared/jobs';
-import type { ProjectInput, SourceKind } from '../../src/shared/schema';
+import { Files, writeData } from '../../src/core/store';
+import { FORMAT_VERSION, type ProjectInput, type SourceKind, type Test } from '../../src/shared/schema';
 
 export const repoRoot = resolve(__dirname, '../..');
 
@@ -107,4 +109,42 @@ export const sampleInput: ProjectInput = {
   targetLevel: 'solid',
   dailyMinutes: 180,
   subjectNames: ['数学II・B・C', '英語リーディング'],
+};
+
+/** 手でテストを1つ置く(テスト作成の仕組みを通さない最小のもの)。 */
+export function putTest(t: TestCore, projectId: string, subjectId: string, testId = 'test-1'): Test {
+  const tp = t.core.paths(projectId).subject(subjectId).test(testId);
+  const problem = (n: number) => ({
+    id: `p${n}`,
+    number: `問${n}`,
+    unitId: 'u01-01',
+    unitName: '単元',
+    difficulty: 'standard' as const,
+    format: 'short' as const,
+    body: `問題 ${n}`,
+    choices: [],
+    points: 10,
+    figureSvg: null,
+    origin: 'diagnostic' as const,
+  });
+  return writeData(tp.testJson, Files.test, {
+    version: FORMAT_VERSION,
+    id: testId,
+    subjectId,
+    kind: 'diagnostic',
+    title: 'ダミーのテスト',
+    timeLimitMin: 30,
+    instructions: '',
+    problems: [problem(1), problem(2)],
+    createdAt: new Date().toISOString(),
+    date: null,
+    status: 'ready',
+  });
+}
+
+
+/** ジョブの外から core の処理を直接呼ぶときの、ダミーの文脈。 */
+export const testCtx = (): JobContext & { log: string[] } => {
+  const log: string[] = [];
+  return { signal: new AbortController().signal, progress: (t) => log.push(t), log };
 };

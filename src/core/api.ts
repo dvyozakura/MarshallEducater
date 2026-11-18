@@ -7,6 +7,7 @@ import { PingOutputSchema, type AppSettings, type ProjectInput, type UnitNode } 
 import { SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
+import { getTakeView, saveDraft, submitAnswers } from './answers';
 import * as C from './correction';
 import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
@@ -95,6 +96,8 @@ export function createApi(core: AppCore) {
       defaultDataDir: core.defaultDataDir(),
       dataDirLocked: core.dataDirLocked(),
       fakeClaude: process.env.ME_FAKE_CLAUDE === '1',
+      /** テスト用: 解く画面の時計を速める倍率。 */
+      timerSpeed: Math.max(1, Number(process.env.ME_TIMER_SPEED) || 1),
       settingsProblem: core.settingsProblem,
     }),
     getSettings: (): AppSettings => core.getSettings(),
@@ -170,6 +173,13 @@ export function createApi(core: AppCore) {
     getVerify: (projectId: string, subjectId: string, testId: string) => getVerify(core, projectId, subjectId, testId),
     verifyTotals: () => verifyTotals(core),
     startCreateDiagnostic: (projectId: string, subjectId: string): JobInfo => startCreateDiagnostic({ projectId, subjectId }),
+
+    // ───── 解く・答案を出す ─────
+    getTakeView: (projectId: string, subjectId: string, testId: string) => getTakeView(core, projectId, subjectId, testId),
+    saveDraft: (projectId: string, subjectId: string, testId: string, input: { answers: Record<string, string>; elapsedSec: number; extended?: boolean }) =>
+      saveDraft(core, projectId, subjectId, testId, input),
+    submitAnswers: (projectId: string, subjectId: string, testId: string, input: { answers: Record<string, string>; elapsedSec: number | null }) =>
+      submitAnswers(core, projectId, subjectId, testId, input),
     /** 問題冊子・解答用紙を PDF に出す。保存した場所を返す。 */
     exportTestPdf: (projectId: string, subjectId: string, testId: string, which: TestPdfKind) => exportTestPdf(core, projectId, subjectId, testId, which),
     /** 保存したファイルをエクスプローラーで表示する(データフォルダの中だけ)。 */

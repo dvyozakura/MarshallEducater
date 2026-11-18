@@ -131,6 +131,10 @@ export class TestPaths {
   get readingJson() {
     return join(this.root, 'reading.json');
   }
+  /** アプリ内で解いている途中の控え。 */
+  get draftJson() {
+    return join(this.root, 'draft.json');
+  }
   get gradingJson() {
     return join(this.root, 'grading.json');
   }

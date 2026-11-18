@@ -1,5 +1,6 @@
 // 印刷用の HTML(問題冊子・解答用紙・解説)を作り、PDF に出す。PDF 化そのものは Electron の印刷機能(外から渡される)。
 import { existsSync } from 'node:fs';
+import { choiceMark } from '../shared/labels';
 import { renderMarkdown, svgToImgHtml } from '../shared/mdmath';
 import { DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, type Test } from '../shared/schema';
 import type { AppCore } from './app';
@@ -45,8 +46,6 @@ export function htmlPage(title: string, body: string): string {
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>${esc(title)}</title><link rel="stylesheet" href="${KATEX_CSS_PLACEHOLDER}"><style>${CSS}</style></head><body>${body}</body></html>`;
 }
 
-const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩'];
-export const choiceMark = (i: number) => CIRCLED[i] ?? `(${i + 1})`;
 
 /** 問題冊子。答え・解説は入れない。 */
 export function bookletHtml(test: Test, subjectName: string): string {

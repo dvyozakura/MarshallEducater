@@ -8,8 +8,10 @@ import { Import } from './screens/Import';
 import { Jobs } from './screens/Jobs';
 import { Plan } from './screens/Plan';
 import { ProjectForm } from './screens/ProjectForm';
+import { Result } from './screens/Result';
 import { Settings } from './screens/Settings';
 import { Subject } from './screens/Subject';
+import { Take } from './screens/Take';
 
 function Screen({ route }: { route: Route }) {
   switch (route.screen) {
@@ -29,6 +31,10 @@ function Screen({ route }: { route: Route }) {
       return <Import projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
     case 'correction':
       return <Correction projectId={route.projectId} subjectId={route.subjectId} sourceId={route.sourceId} />;
+    case 'take':
+      return <Take projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
+    case 'result':
+      return <Result projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
     case 'jobs':
       return <Jobs />;
     case 'settings':

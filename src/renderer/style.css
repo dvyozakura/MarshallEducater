@@ -575,5 +575,13 @@ table.grid th.num {
 .fig-item { display: flex; gap: 8px; align-items: flex-start; margin: 4px 0; }
 .fig-item .grow { flex: 1; }
 .fig-thumb { max-width: 140px; max-height: 100px; border: 1px solid var(--line); }
+.take-bar { position: sticky; top: 0; z-index: 3; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; }
+.take-timer { font-weight: 700; font-size: 16px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.take-timer.low { color: var(--low); }
+.take-choices { display: grid; gap: 4px; margin-top: 6px; }
+.take-choice { display: flex; gap: 8px; align-items: center; padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+.take-choice.on { border-color: var(--accent); background: var(--accent-soft); }
+.take-choice .md p { margin: 0; }
+.take-problem .split { margin-top: 6px; }
 .choices { margin: 4px 0; padding-left: 22px; }
 .choices .md p { margin: 0; }

@@ -17,7 +17,7 @@ export function Import({ projectId, subjectId: initialSubject, testId }: { proje
   const [subjectId, setSubjectId] = useState(initialSubject ?? '');
   const [kind, setKind] = useState<SourceKind>(testId ? 'answer' : 'past_exam');
   const [files, setFiles] = useState<File[]>([]);
-  const [title, setTitle] = useState('');
+  const [title, setTitle] = useState(testId ? '紙の答案' : '');
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SourceMeta | null>(null);

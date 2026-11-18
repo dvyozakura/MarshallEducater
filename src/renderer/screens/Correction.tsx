@@ -331,6 +331,13 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
               {src.status === 'confirmed' ? (
                 <div className="info" data-testid="source-confirmed">
                   確定済みです。{answers ? '採点に使われます。' : '傾向の分析や類題づくりに使われます。'}内容を直すと、確定は外れます。
+                  {src.testId && (
+                    <div className="buttons">
+                      <button className="primary" data-testid="go-grade" onClick={() => nav.go({ screen: 'result', projectId, subjectId, testId: src.testId! })}>
+                        採点へ進む
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="hint">確定するまでは、{answers ? '採点' : '傾向の分析や類題づくり'}に使われません。元のページと見比べて、違うところを直してください。</div>
