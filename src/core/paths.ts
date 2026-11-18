@@ -73,6 +73,49 @@ export class SubjectPaths {
   chat(chatId: string) {
     return join(this.root, 'chats', `${chatId}.json`);
   }
+  get textbook() {
+    return new TextbookPaths(join(this.root, 'textbook'), `${this.rel}/textbook`);
+  }
+}
+
+/** 体系的な教材(科目ごと)。unitId は、ファイル名に使える形にしてから渡す。 */
+export class TextbookPaths {
+  constructor(
+    public readonly root: string,
+    public readonly rel: string,
+  ) {}
+  /** 目次と章の状態。 */
+  get tocJson() {
+    return join(this.root, 'toc.json');
+  }
+  get chaptersDir() {
+    return join(this.root, 'chapters');
+  }
+  /** 章(人が読む版)。 */
+  chapterMd(unitId: string) {
+    return join(this.root, 'chapters', `${unitId}.md`);
+  }
+  /** 章(アプリが読む版。例題・確認問題・補足を分けて持つ)。 */
+  chapterJson(unitId: string) {
+    return join(this.root, 'chapters', `${unitId}.json`);
+  }
+  /** 点検の結果。 */
+  review(unitId: string) {
+    return join(this.root, 'review', `${unitId}.json`);
+  }
+  /** 作り直す前・追記する前の版。 */
+  versionMd(unitId: string, n: number) {
+    return join(this.root, 'versions', `${unitId}.v${n}.md`);
+  }
+  versionJson(unitId: string, n: number) {
+    return join(this.root, 'versions', `${unitId}.v${n}.json`);
+  }
+  chapterPdf(unitId: string) {
+    return join(this.root, 'pdf', `${unitId}.pdf`);
+  }
+  get allPdf() {
+    return join(this.root, 'pdf', 'textbook.pdf');
+  }
 }
 
 /** 資料(または答案)1つぶんのフォルダ。 */

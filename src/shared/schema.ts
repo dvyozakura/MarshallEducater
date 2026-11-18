@@ -642,6 +642,198 @@ export const ChatSchema = z.object({
 });
 export type Chat = z.infer<typeof ChatSchema>;
 
+// ───────── 体系的な教材(textbook/) ─────────
+/** 章の状態。作成中は、ジョブが動いている間だけ。 */
+export const ChapterStatusSchema = z.enum(['none', 'generating', 'done', 'stale']);
+export type ChapterStatus = z.infer<typeof ChapterStatusSchema>;
+export const CHAPTER_STATUS_LABEL: Record<ChapterStatus, string> = { none: '未作成', generating: '作成中', done: '完成', stale: '作り直しを提案' };
+
+/** 章の厚さ(習熟度で決める)。 */
+export const ThicknessSchema = z.enum(['thin', 'standard', 'thick']);
+export type Thickness = z.infer<typeof ThicknessSchema>;
+export const THICKNESS_LABEL: Record<Thickness, string> = { thin: '要点中心(薄い)', standard: '標準', thick: '詳しい(例題が多い)' };
+
+/** 目次(toc.json)の1章ぶん。1つの章 = 1つの単元。 */
+export const TocChapterSchema = z.object({
+  unitId: z.string().min(1),
+  /** 章の題(単元の名前。「親 > 子」)。 */
+  title: z.string(),
+  status: ChapterStatusSchema.default('none'),
+  /** 「作り直しを提案」の理由(状態が stale のとき)。 */
+  staleReason: z.string().default(''),
+  /** 既読の印。 */
+  read: z.boolean().default(false),
+  readAt: z.string().nullable().default(null),
+  /** 「未習」の印(ユーザーが付ける)。未習の単元は、前提から丁寧に書く。 */
+  unlearned: z.boolean().default(false),
+  /** 何版目か(まだ作っていなければ 0)。 */
+  chapterVersion: z.number().int().min(0).default(0),
+  builtAt: z.string().nullable().default(null),
+  /** 作ったときの厚さ・習熟度・未習の印(作り直しの提案に使う)。 */
+  thickness: ThicknessSchema.nullable().default(null),
+  masteryAtBuild: z.number().nullable().default(null),
+  unlearnedAtBuild: z.boolean().nullable().default(null),
+  /** 単元ツリーから外れた(消された・扱わない)が、作った章が残っているもの。 */
+  orphan: z.boolean().default(false),
+  /** いまの版の確認問題のテスト。 */
+  quizTestId: z.string().nullable().default(null),
+});
+export type TocChapter = z.infer<typeof TocChapterSchema>;
+
+export const TocSchema = z.object({
+  version: z.number().int(),
+  chapters: z.array(TocChapterSchema),
+  /** 「まとめて作る」で、1日の上限のために後日に回した章(単元 ID、作る順)。 */
+  deferred: z.array(z.string()).default([]),
+  /** 後日に回した日。 */
+  deferredAt: z.string().nullable().default(null),
+  updatedAt: z.string().nullable().default(null),
+});
+export type Toc = z.infer<typeof TocSchema>;
+
+/** 章の本文に入れる図(SVG)。本文中の `[[図ID]]` の行に置く。 */
+export const ChapterFigureSchema = z.object({
+  /** 本文から参照する ID(例: fig1)。 */
+  id: z.string().regex(/^[A-Za-z0-9_-]+$/),
+  svg: z.string(),
+  /** 図の説明(図が出せないときは、これを文章として出す)。 */
+  caption: z.string().default(''),
+});
+export type ChapterFigure = z.infer<typeof ChapterFigureSchema>;
+
+/** Claude が書く章の本文(導入・要点・よくある誤り)。例題と確認問題は、問題づくりと検算の仕組みで別に作る。 */
+export const ChapterBodyOutputSchema = z.object({
+  /** 導入(Markdown)。何を学ぶ章か、前の章とのつながり、志望校でどう問われるか。 */
+  intro: z.string().min(1),
+  /** 要点(Markdown、数式は LaTeX)。定義・公式・定理・重要事項を、理由や使いどころと一緒に。 */
+  points: z.string().min(1),
+  /** よくある誤り(Markdown)。 */
+  pitfalls: z.string().min(1),
+  /** 例題のねらい。入力の examples と同じ数・同じ順で、各例題で何を身につけさせるかを1文ずつ。 */
+  exampleFocus: z.array(z.string()).default([]),
+  /** 図(必要なときだけ)。 */
+  figures: z.array(ChapterFigureSchema).default([]),
+});
+export type ChapterBodyOutput = z.infer<typeof ChapterBodyOutputSchema>;
+
+/** 点検(別の呼び出し)の出力。指摘が無ければ issues は空。 */
+export const ChapterIssueSchema = z.object({
+  /** どの部分か。 */
+  section: z.enum(['intro', 'points', 'pitfalls', 'supplement']),
+  /** 問題のある箇所(本文からの抜き書き)。 */
+  quote: z.string().default(''),
+  /** 何が誤りか(事実・計算・用語)。 */
+  problem: z.string().min(1),
+  /** どう直すべきか。 */
+  fix: z.string().default(''),
+});
+export type ChapterIssue = z.infer<typeof ChapterIssueSchema>;
+export const ChapterReviewOutputSchema = z.object({
+  issues: z.array(ChapterIssueSchema),
+  /** 全体の所見(一言)。 */
+  comment: z.string().default(''),
+});
+export type ChapterReviewOutput = z.infer<typeof ChapterReviewOutputSchema>;
+
+/** 点検の指摘を受けた修正の出力。直す対象の部分だけを、全文で書く(対象でない部分は null)。 */
+export const ChapterReviseOutputSchema = z.object({
+  intro: z.string().nullable().default(null),
+  points: z.string().nullable().default(null),
+  pitfalls: z.string().nullable().default(null),
+  supplement: z.string().nullable().default(null),
+  figures: z.array(ChapterFigureSchema).default([]),
+});
+export type ChapterReviseOutput = z.infer<typeof ChapterReviseOutputSchema>;
+
+/** 「教材に反映」: 質問のやりとりをもとにした補足。 */
+export const ChapterSupplementOutputSchema = z.object({
+  /** 補足の見出し(短く)。 */
+  title: z.string().min(1),
+  /** 補足の本文(Markdown、数式は LaTeX)。 */
+  markdown: z.string().min(1),
+});
+export type ChapterSupplementOutput = z.infer<typeof ChapterSupplementOutputSchema>;
+
+/** 章の例題(解答・解説つき)。検算を通ったもの。 */
+export const ChapterExampleSchema = z.object({
+  difficulty: DifficultySchema,
+  format: ProblemFormatSchema,
+  /** この例題のねらい。 */
+  focus: z.string().default(''),
+  body: z.string(),
+  choices: z.array(z.string()).default([]),
+  figureSvg: z.string().nullable().default(null),
+  answer: z.string(),
+  solution: z.string().default(''),
+});
+export type ChapterExample = z.infer<typeof ChapterExampleSchema>;
+
+/** 章の確認問題(問題文だけ。答えは、確認問題のテストの answer_key.json にある)。 */
+export const ChapterQuizItemSchema = z.object({
+  problemId: z.string(),
+  difficulty: DifficultySchema,
+  format: ProblemFormatSchema,
+  body: z.string(),
+  choices: z.array(z.string()).default([]),
+  figureSvg: z.string().nullable().default(null),
+  points: z.number(),
+});
+export type ChapterQuizItem = z.infer<typeof ChapterQuizItemSchema>;
+
+export const ChapterSupplementSchema = z.object({
+  at: z.string(),
+  /** もとになった質問のやりとり。 */
+  chatId: z.string().nullable().default(null),
+  title: z.string(),
+  markdown: z.string(),
+});
+export type ChapterSupplement = z.infer<typeof ChapterSupplementSchema>;
+
+/** 章(chapters/<単元ID>.json)。人が読む版は chapters/<単元ID>.md。 */
+export const ChapterSchema = z.object({
+  version: z.number().int(),
+  unitId: z.string(),
+  title: z.string(),
+  /** 何版目か(1 始まり。作り直し・補足の追記のたびに 1 増える)。 */
+  chapterVersion: z.number().int().min(1),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+  thickness: ThicknessSchema,
+  unlearned: z.boolean().default(false),
+  masteryAtBuild: z.number().nullable().default(null),
+  intro: z.string(),
+  points: z.string(),
+  pitfalls: z.string(),
+  figures: z.array(ChapterFigureSchema).default([]),
+  examples: z.array(ChapterExampleSchema),
+  quiz: z.array(ChapterQuizItemSchema).default([]),
+  quizTestId: z.string().nullable().default(null),
+  /** 質問から足した補足(教材に反映)。 */
+  supplements: z.array(ChapterSupplementSchema).default([]),
+});
+export type Chapter = z.infer<typeof ChapterSchema>;
+
+/** 点検の結果(review/<単元ID>.json)。作り直し・補足のたびに records に足す。 */
+export const ChapterReviewRecordSchema = z.object({
+  at: z.string(),
+  chapterVersion: z.number().int(),
+  /** 章の本文の点検か、補足の点検か。 */
+  target: z.enum(['chapter', 'supplement']),
+  issues: z.array(ChapterIssueSchema),
+  comment: z.string().default(''),
+  /** 指摘を受けて直したか。 */
+  revised: z.boolean(),
+  /** 例題・確認問題の検算の結果(章の本文の点検のときだけ)。 */
+  verify: z.object({ adopted: z.number().int(), regenerated: z.number().int(), discarded: z.number().int() }).nullable().default(null),
+});
+export type ChapterReviewRecord = z.infer<typeof ChapterReviewRecordSchema>;
+export const ChapterReviewSchema = z.object({
+  version: z.number().int(),
+  unitId: z.string(),
+  records: z.array(ChapterReviewRecordSchema),
+});
+export type ChapterReview = z.infer<typeof ChapterReviewSchema>;
+
 // ───────── 単元の調整(Claude の出力) ─────────
 export const AdjustUnitsOutputSchema = z.object({
   tree: z.array(UnitNodeSchema).min(1),

@@ -143,4 +143,7 @@ export const Files = {
   plan: def('plan.json', S.PlanSchema),
   review: def('review.json', S.ReviewSchema),
   chat: def('chat.json', S.ChatSchema),
+  toc: def('toc.json', S.TocSchema),
+  chapter: def('chapter.json', S.ChapterSchema),
+  chapterReview: def('chapter_review.json', S.ChapterReviewSchema),
 };

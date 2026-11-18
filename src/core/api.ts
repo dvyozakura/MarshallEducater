@@ -21,6 +21,7 @@ import { getQuality } from './quality';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
+import { getTextbookView, setChapterRead, setChapterUnlearned } from './textbook';
 import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { getTrendView, updateTrend } from './trend';
 import { adjustUnits, getUnits, saveUnits } from './units';
@@ -273,6 +274,12 @@ export function createApi(core: AppCore) {
       const chat = postQuestion(core, projectId, subjectId, input);
       return { chatId: chat.id, job: startAnswerChat({ projectId, subjectId, chatId: chat.id }) };
     },
+
+    // ───── 体系的な教材 ─────
+    /** 「教材」タブの目次(章の状態・既読・未習・確認問題の結果)。 */
+    getTextbookView: (projectId: string, subjectId: string) => getTextbookView(core, projectId, subjectId),
+    setChapterRead: (projectId: string, subjectId: string, unitId: string, read: boolean) => setChapterRead(core, projectId, subjectId, unitId, read),
+    setChapterUnlearned: (projectId: string, subjectId: string, unitId: string, unlearned: boolean) => setChapterUnlearned(core, projectId, subjectId, unitId, unlearned),
 
     // ───── 今日の課題 ─────
     getTodayView: (projectId: string) => getTodayView(core, projectId),
