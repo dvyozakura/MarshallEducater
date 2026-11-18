@@ -8,6 +8,7 @@ export const PROMPT_KINDS = [
   'adjust_units',
   'read_pages',
   'reread_problem',
+  'design_test',
   'generate_problems',
   'solve_problems',
   'judge_answers',
@@ -42,6 +43,14 @@ export function promptsDir(): string {
 
 export function loadPromptFile(name: string): string {
   return readFileSync(join(promptsDir(), `${name}.md`), 'utf8');
+}
+
+/** `<!-- MODE:名前 -->` で区切ったプロンプトのファイルから、1つの区画を取り出す。 */
+export function loadPromptSection(name: string, mode: string): string {
+  for (const m of loadPromptFile(name).matchAll(/<!-- MODE:(\w+) -->\r?\n([\s\S]*?)(?=<!-- MODE:|$)/g)) {
+    if (m[1] === mode) return m[2].trim();
+  }
+  throw new Error(`プロンプト ${name} に、区画 ${mode} がありません`);
 }
 
 /** `{{名前}}` を置き換える。渡されていない名前が残っていたら間違いなのでエラーにする。 */

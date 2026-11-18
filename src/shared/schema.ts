@@ -312,6 +312,17 @@ export const GeneratedProblemSchema = z.object({
 export type GeneratedProblem = z.infer<typeof GeneratedProblemSchema>;
 export const GenerateOutputSchema = z.object({ problems: z.array(GeneratedProblemSchema) });
 
+/** テストの設計(診断テスト・模擬試験): 分量・制限時間・出題する単元と難易度と形式を Claude が決める。 */
+export const DesignTestOutputSchema = z.object({
+  /** 制限時間(分)。 */
+  timeLimitMin: z.number().int().min(5).max(240),
+  /** 受験生への注意書き(1〜3文)。 */
+  instructions: z.string().default(''),
+  /** 出題する問題の一覧(1要素 = 1問)。 */
+  items: z.array(z.object({ unitId: z.string(), difficulty: DifficultySchema, format: ProblemFormatSchema })).min(1).max(40),
+});
+export type DesignTestOutput = z.infer<typeof DesignTestOutputSchema>;
+
 export const ProblemSchema = z.object({
   id: z.string(),
   number: z.string(),

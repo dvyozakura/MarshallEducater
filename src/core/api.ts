@@ -1,5 +1,6 @@
 // 画面(renderer)から使える機能の一覧。ここに無いことは画面からはできない。
 // Electron に依存しないので、単体テストからも同じ入口で呼べる。
+import { resolve, sep } from 'node:path';
 import { todayString } from '../shared/dates';
 import type { JobInfo } from '../shared/jobs';
 import { PingOutputSchema, type AppSettings, type ProjectInput, type UnitNode } from '../shared/schema';
@@ -7,11 +8,14 @@ import { SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
 import * as C from './correction';
+import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { exportTestPdf, type TestPdfKind } from './print';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
+import { getTest, getVerify, listTests, verifyTotals } from './tests';
 import { adjustUnits, getUnits, saveUnits } from './units';
 
 interface JobDef<P> {
@@ -71,6 +75,14 @@ export function createApi(core: AppCore) {
     run: async (p, ctx) => {
       const q = await C.rereadProblem(core, p.projectId, p.subjectId, p.sourceId, p.problemId, p.hint, ctx);
       return { problemId: q.id };
+    },
+  });
+
+  const startCreateDiagnostic = defineJob<{ projectId: string; subjectId: string }>('create_diagnostic', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 実力診断テストの作成`,
+    run: async (p, ctx) => {
+      const test = await createDesignedTest(core, p.projectId, p.subjectId, 'diagnostic', ctx);
+      return { testId: test.id, problems: test.problems.length };
     },
   });
 
@@ -151,6 +163,21 @@ export function createApi(core: AppCore) {
     unconfirmSource: (projectId: string, subjectId: string, sourceId: string) => C.unconfirmSource(core, projectId, subjectId, sourceId),
     startRereadProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, hint: string): JobInfo =>
       startRereadProblem({ projectId, subjectId, sourceId, problemId, hint }),
+
+    // ───── テスト ─────
+    listTests: (projectId: string, subjectId: string) => listTests(core, projectId, subjectId),
+    getTest: (projectId: string, subjectId: string, testId: string) => getTest(core, projectId, subjectId, testId),
+    getVerify: (projectId: string, subjectId: string, testId: string) => getVerify(core, projectId, subjectId, testId),
+    verifyTotals: () => verifyTotals(core),
+    startCreateDiagnostic: (projectId: string, subjectId: string): JobInfo => startCreateDiagnostic({ projectId, subjectId }),
+    /** 問題冊子・解答用紙を PDF に出す。保存した場所を返す。 */
+    exportTestPdf: (projectId: string, subjectId: string, testId: string, which: TestPdfKind) => exportTestPdf(core, projectId, subjectId, testId, which),
+    /** 保存したファイルをエクスプローラーで表示する(データフォルダの中だけ)。 */
+    revealFile: (path: string): void => {
+      const full = resolve(path);
+      if (!full.startsWith(resolve(core.dataDir()) + sep)) throw new Error('データフォルダの外のファイルは開けません');
+      core.revealFile?.(full);
+    },
   };
 }
 

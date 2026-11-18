@@ -1,9 +1,10 @@
-import { app, BrowserWindow, ipcMain, nativeImage, net, protocol } from 'electron';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { app, BrowserWindow, ipcMain, nativeImage, net, protocol, shell } from 'electron';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { AppCore } from '../core/app';
 import { createApi } from '../core/api';
+import { KATEX_CSS_PLACEHOLDER } from '../core/print';
 
 // テスト時は利用者の設定・データに触れないよう、保存先を環境変数で差し替える。
 if (process.env.ME_USER_DATA) app.setPath('userData', process.env.ME_USER_DATA);
@@ -68,6 +69,25 @@ function registerAppProtocol(): void {
   });
 }
 
+/** 印刷用の HTML を、見えないウィンドウで開いて PDF にする。 */
+async function printPdf(html: string, outPdf: string): Promise<void> {
+  const cssHref = pathToFileURL(join(__dirname, '../katex/katex.min.css')).toString();
+  const tmp = join(app.getPath('temp'), `me-print-${process.pid}-${Date.now()}.html`);
+  writeFileSync(tmp, html.replace(KATEX_CSS_PLACEHOLDER, cssHref), 'utf8');
+  const win = new BrowserWindow({ show: false, width: 900, height: 1200, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  try {
+    await win.loadFile(tmp);
+    // 数式のフォントが読み込まれるのを待ってから印刷する
+    await win.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
+    const pdf = await win.webContents.printToPDF({ pageSize: 'A4', printBackground: true, preferCSSPageSize: true });
+    mkdirSync(dirname(outPdf), { recursive: true });
+    writeFileSync(outPdf, pdf);
+  } finally {
+    win.destroy();
+    rmSync(tmp, { force: true });
+  }
+}
+
 void app.whenReady().then(() => {
   registerAppProtocol();
   const core = new AppCore({
@@ -84,6 +104,10 @@ void app.whenReady().then(() => {
       const h = Math.max(1, Math.min(height - y, Math.round(bbox.h * height)));
       mkdirSync(dirname(outPng), { recursive: true });
       writeFileSync(outPng, img.crop({ x, y, width: w, height: h }).toPNG());
+    },
+    printPdf,
+    revealFile: (path) => {
+      if (!headless) shell.showItemInFolder(path);
     },
   });
   const api = createApi(core) as Record<string, (...args: unknown[]) => unknown>;

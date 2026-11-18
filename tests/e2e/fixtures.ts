@@ -116,3 +116,20 @@ export async function inspectPng(app: ElectronApplication, file: string): Promis
     return { width, height, darkRatio: n ? dark / n : 0 };
   }, file);
 }
+
+/** PDF のページ数と、中の文字を取り出す(pdf.js)。 */
+export async function pdfInfo(file: string): Promise<{ pages: number; text: string }> {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const { readFileSync } = await import('node:fs');
+  const task = pdfjs.getDocument({ data: new Uint8Array(readFileSync(file)), useSystemFonts: true });
+  const doc = await task.promise;
+  let text = '';
+  for (let n = 1; n <= doc.numPages; n++) {
+    const content = await (await doc.getPage(n)).getTextContent();
+    text += `${content.items.map((it) => ('str' in it ? it.str : '')).join('')} `;
+  }
+  const pages = doc.numPages;
+  await task.destroy();
+  // PDF の中では「力」などが部首用の別の文字コードになることがあるので、ならしておく
+  return { pages, text: text.normalize('NFKC') };
+}

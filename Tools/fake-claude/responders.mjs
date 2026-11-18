@@ -180,7 +180,22 @@ function judgeAnswers({ input, mode }) {
   };
 }
 
+/** テストの設計: 単元を広く拾い、難易度を混ぜる。共通テスト型はすべて選択式。問題数は control.options.designCount(既定 4)。 */
+function designTest({ input, control, mode }) {
+  const n = control.options?.designCount ?? 4;
+  const diffs = ['easy', 'standard', 'target'];
+  const formats = input.project.examType === '共通テスト' ? ['choice'] : ['choice', 'short', 'essay', 'short'];
+  const items = [];
+  for (let i = 0; i < n; i++) {
+    const unit = input.units[Math.floor((i * input.units.length) / n) % input.units.length];
+    items.push({ unitId: unit.id, difficulty: diffs[i % 3], format: formats[i % formats.length] });
+  }
+  if (mode === 'bad_unit') items[0].unitId = 'zzz';
+  return { timeLimitMin: input.kind === 'mock' ? 90 : 40, instructions: '分からない問題は空欄でかまいません。途中の式も書いてください。', items };
+}
+
 const responders = {
+  design_test: designTest,
   generate_problems: generateProblems,
   solve_problems: solveProblems,
   judge_answers: judgeAnswers,

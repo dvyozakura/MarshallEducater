@@ -19,6 +19,10 @@ export interface CoreOptions {
   extraEnv?: Record<string, string>;
   /** 画像の一部を切り出して PNG で保存する(Electron の機能で行うので、外から渡す)。 */
   cropImage?: CropImage;
+  /** HTML を PDF にして保存する(Electron の印刷機能で行うので、外から渡す)。 */
+  printPdf?: (html: string, outPdf: string) => Promise<void>;
+  /** ファイルをエクスプローラーで表示する。 */
+  revealFile?: (path: string) => void;
 }
 
 /** bbox はページの左上を (0,0)、右下を (1,1) とした割合。 */
@@ -59,6 +63,14 @@ export class AppCore {
 
   get cropImage(): CropImage | undefined {
     return this.opts.cropImage;
+  }
+
+  get printPdf(): CoreOptions['printPdf'] {
+    return this.opts.printPdf;
+  }
+
+  get revealFile(): CoreOptions['revealFile'] {
+    return this.opts.revealFile;
   }
 
   getSettings(): AppSettings {
