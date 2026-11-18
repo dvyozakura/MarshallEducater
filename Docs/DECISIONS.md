@@ -185,4 +185,10 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - 読み取りの補正率 = 人が直した文字数 ÷ Claude が最初に読み取った文字数(corrections.json の合計)。問題の資料と答案(手書きを含む)は別々に出す。確定・確定取り消しは「操作」の回数に入れない。
 - 仕様に無いが、採点の上書きの数(上書きした設問 ÷ 採点した設問)も目安として出す。
 
+## 本物での通し確認と配布ビルド(項目21)
+- smoke_real は Electron を起動せず、core のコード(プロジェクト作成 → createTest → submitAnswers → gradeTest)を直接呼ぶ。解説づくり(採点のあとに自動で並ぶジョブ)は通らないので、呼び出しは 3〜5 回に収まる。回数の上限は、アプリの「1日の上限」を 5 にして守る(超えると daily_limit で止まる)。データは `tests/tmp/smoke-real-*/`。
+- 配布ビルド: main・preload は esbuild、renderer は vite でまとめてあり、実行時に node_modules を読まない。そのため配布物には `out/`(ソースマップを除く)と最小の package.json だけを入れる。asar にはしない(プロンプトや KaTeX のファイルを普通のファイルとして読むため。暫定)。
+- `@electron/packager` で作る。Electron 本体を取得できないとき(ネットワークなし等)は、`node_modules/electron/dist` を写して `resources/app` にアプリを置く方法に切り替える(実行ファイルのアイコン・版情報は Electron のままになる)。
+- アイコンは未設定(Electron の既定)。コード署名なし。
+
 <!-- END -->
