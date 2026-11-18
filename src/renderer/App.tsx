@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { JobBar, JobsProvider } from './jobs';
 import { NavContext, routeProjectId, type Nav, type Route } from './nav';
+import { Correction } from './screens/Correction';
 import { Dashboard } from './screens/Dashboard';
 import { Home } from './screens/Home';
 import { Import } from './screens/Import';
@@ -26,6 +27,8 @@ function Screen({ route }: { route: Route }) {
       return <Plan projectId={route.projectId} />;
     case 'import':
       return <Import projectId={route.projectId} subjectId={route.subjectId} testId={route.testId} />;
+    case 'correction':
+      return <Correction projectId={route.projectId} subjectId={route.subjectId} sourceId={route.sourceId} />;
     case 'jobs':
       return <Jobs />;
     case 'settings':

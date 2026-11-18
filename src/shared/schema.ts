@@ -228,6 +228,9 @@ export type ReadProblem = z.infer<typeof ReadProblemSchema>;
 export const ReadPagesOutputSchema = z.object({ problems: z.array(ReadProblemSchema) });
 export type ReadPagesOutput = z.infer<typeof ReadPagesOutputSchema>;
 
+/** 1問だけの読み直し(ヒントつき)の出力。 */
+export const RereadOutputSchema = z.object({ problem: ReadProblemSchema });
+
 export const FigureSchema = ReadFigureSchema.extend({
   id: z.string(),
   /** 切り出した画像(資料フォルダからの相対パス)。まだなら null。 */

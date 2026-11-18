@@ -6,6 +6,7 @@ import { PingOutputSchema, type AppSettings, type ProjectInput, type UnitNode } 
 import { SUBJECT_PRESETS } from '../shared/subjects';
 import type { AppCore } from './app';
 import { callClaude } from './claude/task';
+import * as C from './correction';
 import { ensureDir } from './fsutil';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
@@ -60,7 +61,16 @@ export function createApi(core: AppCore) {
     title: (p) => `${subjectName(p.projectId, p.subjectId)}: 「${sourceTitle(p.projectId, p.subjectId, p.sourceId)}」の読み取り`,
     run: async (p, ctx) => {
       const ex = await readSource(core, p.projectId, p.subjectId, p.sourceId, ctx);
+      C.afterReadSource(core, p.projectId, p.subjectId, p.sourceId);
       return { problems: ex.problems.length };
+    },
+  });
+
+  const startRereadProblem = defineJob<{ projectId: string; subjectId: string; sourceId: string; problemId: string; hint: string }>('reread_problem', {
+    title: (p) => `${subjectName(p.projectId, p.subjectId)}: 「${sourceTitle(p.projectId, p.subjectId, p.sourceId)}」の一部を読み直し`,
+    run: async (p, ctx) => {
+      const q = await C.rereadProblem(core, p.projectId, p.subjectId, p.sourceId, p.problemId, p.hint, ctx);
+      return { problemId: q.id };
     },
   });
 
@@ -122,6 +132,25 @@ export function createApi(core: AppCore) {
     // ───── 読み取りと補正 ─────
     startReadSource: (projectId: string, subjectId: string, sourceId: string): JobInfo => startReadSource({ projectId, subjectId, sourceId }),
     getExtracted: (projectId: string, subjectId: string, sourceId: string) => getExtracted(core, projectId, subjectId, sourceId),
+    getCorrectionView: (projectId: string, subjectId: string, sourceId: string) => C.getCorrectionView(core, projectId, subjectId, sourceId),
+    getCorrections: (projectId: string, subjectId: string, sourceId: string) => C.getCorrections(core, projectId, subjectId, sourceId),
+    updateProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, patch: C.ProblemPatch) =>
+      C.updateProblem(core, projectId, subjectId, sourceId, problemId, patch),
+    resolveUncertain: (projectId: string, subjectId: string, sourceId: string, problemId: string, index: number) =>
+      C.resolveUncertain(core, projectId, subjectId, sourceId, problemId, index),
+    splitProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, at: number) => C.splitProblem(core, projectId, subjectId, sourceId, problemId, at),
+    mergeWithNext: (projectId: string, subjectId: string, sourceId: string, problemId: string) => C.mergeWithNext(core, projectId, subjectId, sourceId, problemId),
+    moveProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, delta: number) => C.moveProblem(core, projectId, subjectId, sourceId, problemId, delta),
+    deleteProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string) => C.deleteProblem(core, projectId, subjectId, sourceId, problemId),
+    saveFigure: (projectId: string, subjectId: string, sourceId: string, problemId: string, input: C.FigureInput) => C.saveFigure(core, projectId, subjectId, sourceId, problemId, input),
+    deleteFigure: (projectId: string, subjectId: string, sourceId: string, problemId: string, figureId: string) => C.deleteFigure(core, projectId, subjectId, sourceId, problemId, figureId),
+    readFigureImage: (projectId: string, subjectId: string, sourceId: string, image: string) => C.readFigureImage(core, projectId, subjectId, sourceId, image),
+    confirmProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, confirmed: boolean) =>
+      C.confirmProblem(core, projectId, subjectId, sourceId, problemId, confirmed),
+    confirmSource: (projectId: string, subjectId: string, sourceId: string) => C.confirmSource(core, projectId, subjectId, sourceId),
+    unconfirmSource: (projectId: string, subjectId: string, sourceId: string) => C.unconfirmSource(core, projectId, subjectId, sourceId),
+    startRereadProblem: (projectId: string, subjectId: string, sourceId: string, problemId: string, hint: string): JobInfo =>
+      startRereadProblem({ projectId, subjectId, sourceId, problemId, hint }),
   };
 }
 

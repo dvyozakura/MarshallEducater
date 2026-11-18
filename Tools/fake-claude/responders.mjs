@@ -83,8 +83,29 @@ function readPages({ input, control, mode }) {
   return { problems };
 }
 
+/** 1問だけの読み直し: 前回の内容にヒントを反映した印を付け、自信がない箇所を無くして返す。 */
+function rereadProblem({ input }) {
+  const p = input.problem;
+  return {
+    problem: {
+      number: p.number,
+      major: p.major,
+      minor: p.minor,
+      points: p.points,
+      body: `${p.body}\n(読み直し: ${input.hint || 'ヒントなし'})`,
+      choices: p.choices,
+      answerFormat: p.answerFormat,
+      unit: p.unit,
+      target: p.target,
+      pages: [input.pages[0].page],
+      uncertain: [],
+    },
+  };
+}
+
 const responders = {
   read_pages: readPages,
+  reread_problem: rereadProblem,
   ping: () => ({ ok: true, message: '接続できました' }),
   adjust_units: adjustUnits,
 };

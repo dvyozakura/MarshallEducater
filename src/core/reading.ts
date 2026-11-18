@@ -109,7 +109,7 @@ export function getExtracted(core: AppCore, projectId: string, subjectId: string
 }
 
 /** 答案の読み取りのとき、対応付けの候補としてテストの設問を渡す。 */
-function testProblemsFor(core: AppCore, projectId: string, subjectId: string, meta: SourceMeta): Array<{ number: string; format: string; summary: string }> | null {
+export function testProblemsFor(core: AppCore, projectId: string, subjectId: string, meta: SourceMeta): Array<{ number: string; format: string; summary: string }> | null {
   if (meta.kind !== 'answer' || !meta.testId) return null;
   const tp = core.paths(projectId).subject(subjectId).test(meta.testId);
   if (!existsSync(tp.testJson)) return null;
@@ -174,7 +174,9 @@ export async function readSource(core: AppCore, projectId: string, subjectId: st
   }
 
   const merged = mergeChunks(results);
-  const problems = merged.map((p, i) => toExtractedProblem(core, paths, p, problemIdAt(i)));
+  // 推定の単元は、一覧にある ID だけを残す
+  const unitIds = new Set(units.map((u) => u.id));
+  const problems = merged.map((p, i) => toExtractedProblem(core, paths, { ...p, unit: unitIds.has(p.unit) ? p.unit : '' }, problemIdAt(i)));
   const extracted: Extracted = { version: FORMAT_VERSION, sourceId, problems, readAt: new Date().toISOString(), confirmedAt: null };
   writeData(paths.extractedJson, Files.extracted, extracted);
   // Claude が読んだままの内容を別に残す(補正率の計算と、補正の履歴のもと)
