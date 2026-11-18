@@ -57,13 +57,13 @@ test('テストを解いて答案を出す: アプリ内で入力(途中の控�
     { problemId: 'p03', answer: '' },
   ]);
   expect(typeof reading.elapsedSec).toBe('number');
-  expect(json(join(dir, 'test.json')).status).toBe('submitted');
+  expect(['submitted', 'graded']).toContain(json(join(dir, 'test.json')).status); // 提出すると、そのまま採点が始まる
   expect(existsSync(join(dir, 'draft.json'))).toBe(false);
 
   // ── 紙の答案を出す(物理) ──
   const sheet = await makeImage(t.app, answerHtml(['問1 ②', '問2 23', '問3 位ごとに足して 26']), join(t.dataDir, '..', 'fixtures', 'answer.png'));
   await page.getByTestId('nav-dashboard').click();
-  await expect(rows.filter({ hasText: '数学' }).getByTestId('test-status')).toContainText('提出済み');
+  await expect(rows).toHaveCount(1); // 採点まで済んだ数学は「これから解くテスト」から外れる
   await rows.filter({ hasText: '物理' }).getByTestId('submit-paper').click();
   await expect(page.getByTestId('screen-import')).toBeVisible();
   await expect(page.getByTestId('import-kind')).toBeDisabled();
@@ -102,6 +102,7 @@ test('テストを解いて答案を出す: アプリ内で入力(途中の控�
   expect(json(join(pdir, 'test.json')).status).toBe('submitted');
   await page.getByTestId('go-grade').click();
   await expect(page.getByTestId('screen-result')).toBeVisible();
+  await expect(page.getByTestId('result-total')).toContainText('/ 40 点');
   await t.app.close();
 });
 

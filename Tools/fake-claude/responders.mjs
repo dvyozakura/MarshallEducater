@@ -194,7 +194,33 @@ function designTest({ input, control, mode }) {
   return { timeLimitMin: input.kind === 'mock' ? 90 : 40, instructions: '分からない問題は空欄でかまいません。途中の式も書いてください。', items };
 }
 
+/**
+ * 採点: 偽の問題(a + b)の和が答案に入っていれば満点。記述は、和が無くても「足」と書いてあれば半分(部分点)。
+ * モード no_mistake は、減点があるのにミスの種類を付けない(やり直しの確認用)。strict は記述をすべて 0 点にする。
+ */
+function grade({ input, mode }) {
+  return {
+    items: input.items.map((it) => {
+      const sum = String(sumOf(it.body));
+      let score = 0;
+      if (it.format === 'choice') score = it.answer === it.key ? it.points : 0;
+      else if ((it.answer.match(/d+/g) ?? []).includes(sum)) score = it.points;
+      else if (it.format === 'essay' && it.answer.includes('足') && mode !== 'strict') score = it.points / 2;
+      if (score >= it.points) return { problemId: it.problemId, score, rationale: '正解と一致', mistake: null, comment: '' };
+      const mistake = mode === 'no_mistake' ? null : it.format === 'choice' ? 'misread' : it.format === 'short' ? 'calculation' : score > 0 ? 'calculation' : 'approach';
+      return {
+        problemId: it.problemId,
+        score,
+        rationale: it.format === 'essay' ? `考え方の説明 ${score}/${it.points / 2}、答え 0/${it.points / 2}` : `正解は ${it.key}、答案は ${it.answer.slice(0, 20)}`,
+        mistake,
+        comment: `${it.unitName} の問題で、和の計算を誤っています。位をそろえて確かめましょう。`,
+      };
+    }),
+  };
+}
+
 const responders = {
+  grade,
   design_test: designTest,
   generate_problems: generateProblems,
   solve_problems: solveProblems,

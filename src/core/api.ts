@@ -11,6 +11,7 @@ import { getTakeView, saveDraft, submitAnswers } from './answers';
 import * as C from './correction';
 import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
+import { getResultView, gradeTest, gradingTotals, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
 import { exportTestPdf, type TestPdfKind } from './print';
@@ -84,6 +85,16 @@ export function createApi(core: AppCore) {
     run: async (p, ctx) => {
       const test = await createDesignedTest(core, p.projectId, p.subjectId, 'diagnostic', ctx);
       return { testId: test.id, problems: test.problems.length };
+    },
+  });
+
+  const testTitle = (projectId: string, subjectId: string, testId: string) => getTest(core, projectId, subjectId, testId).title;
+
+  const startGrade = defineJob<{ projectId: string; subjectId: string; testId: string }>('grade', {
+    title: (p) => `「${testTitle(p.projectId, p.subjectId, p.testId)}」の採点`,
+    run: async (p, ctx) => {
+      const grading = await gradeTest(core, p.projectId, p.subjectId, p.testId, ctx);
+      return { testId: p.testId, ...gradingTotals(grading) };
     },
   });
 
@@ -173,6 +184,13 @@ export function createApi(core: AppCore) {
     getVerify: (projectId: string, subjectId: string, testId: string) => getVerify(core, projectId, subjectId, testId),
     verifyTotals: () => verifyTotals(core),
     startCreateDiagnostic: (projectId: string, subjectId: string): JobInfo => startCreateDiagnostic({ projectId, subjectId }),
+
+    // ───── 採点 ─────
+    startGrade: (projectId: string, subjectId: string, testId: string): JobInfo => startGrade({ projectId, subjectId, testId }),
+    getResultView: (projectId: string, subjectId: string, testId: string) => getResultView(core, projectId, subjectId, testId),
+    /** 採点結果の上書き(score が null なら取り消し)。 */
+    overrideGrade: (projectId: string, subjectId: string, testId: string, problemId: string, score: number | null, note: string) =>
+      overrideGrade(core, projectId, subjectId, testId, problemId, score, note),
 
     // ───── 解く・答案を出す ─────
     getTakeView: (projectId: string, subjectId: string, testId: string) => getTakeView(core, projectId, subjectId, testId),

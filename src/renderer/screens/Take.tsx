@@ -139,6 +139,8 @@ export function Take({ projectId, subjectId, testId }: { projectId: string; subj
     try {
       state.current.done = true;
       await api.submitAnswers(projectId, subjectId, testId, { answers, elapsedSec: elapsed });
+      // 出したら、そのまま採点を始める(結果の画面で進み具合が見える)
+      await api.startGrade(projectId, subjectId, testId).catch(() => {});
       nav.go({ screen: 'result', ...at });
     } catch (e) {
       state.current.done = false;

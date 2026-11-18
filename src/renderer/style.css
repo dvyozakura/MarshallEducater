@@ -583,5 +583,18 @@ table.grid th.num {
 .take-choice.on { border-color: var(--accent); background: var(--accent-soft); }
 .take-choice .md p { margin: 0; }
 .take-problem .split { margin-top: 6px; }
+.result-marks { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; max-width: 50%; }
+.result-marks .mark { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; background: #e9ecf3; }
+.result-marks .mark.good { background: #dcf3e5; color: #1c6b3d; }
+.result-marks .mark.mid { background: #fff0c9; color: #7a5a06; }
+.result-marks .mark.low { background: #fbdcdc; color: #9a2323; }
+.result-item { border-left: 4px solid var(--line); }
+.result-item.good { border-left-color: var(--good); }
+.result-item.mid { border-left-color: var(--mid); }
+.result-item.low { border-left-color: var(--low); }
+.result-note { margin: 6px 0; }
+.result-answers { margin: 8px 0; }
+.choices.plain { list-style: none; padding-left: 4px; }
+.choices.plain li { display: flex; gap: 6px; }
 .choices { margin: 4px 0; padding-left: 22px; }
 .choices .md p { margin: 0; }

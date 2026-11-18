@@ -148,3 +148,20 @@ export const testCtx = (): JobContext & { log: string[] } => {
   const log: string[] = [];
   return { signal: new AbortController().signal, progress: (t) => log.push(t), log };
 };
+
+/** 診断テスト(選択式 13+7、短答 16+7、記述 19+7、短答 22+7)を作る。 */
+export async function setupTest(control: Record<string, unknown> = {}) {
+  const t = makeCore(control);
+  const p = t.api.createProject(sampleInput);
+  const sid = p.subjects[0].id;
+  await done(t, t.api.startCreateDiagnostic(p.id, sid));
+  const [test] = t.api.listTests(p.id, sid);
+  return { t, p, sid, test, ids: [p.id, sid, test.id] as const };
+}
+
+export async function submitAndGrade(t: TestCore, ids: readonly [string, string, string], answers: Record<string, string>, elapsedSec: number | null = 600) {
+  t.api.submitAnswers(...ids, { answers, elapsedSec });
+  await done(t, t.api.startGrade(...ids));
+  return t.api.getResultView(...ids);
+}
+

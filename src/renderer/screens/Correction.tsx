@@ -333,7 +333,7 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
                   確定済みです。{answers ? '採点に使われます。' : '傾向の分析や類題づくりに使われます。'}内容を直すと、確定は外れます。
                   {src.testId && (
                     <div className="buttons">
-                      <button className="primary" data-testid="go-grade" onClick={() => nav.go({ screen: 'result', projectId, subjectId, testId: src.testId! })}>
+                      <button className="primary" data-testid="go-grade" onClick={() => void api.startGrade(projectId, subjectId, src.testId!).catch(() => {}).then(() => nav.go({ screen: 'result', projectId, subjectId, testId: src.testId! }))}>
                         採点へ進む
                       </button>
                     </div>
