@@ -17,6 +17,7 @@ import type { JobContext } from './jobs';
 import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
 import { createPlan, getPlanView } from './plan';
 import { exportTestPdf, type TestPdfKind } from './print';
+import { getQuality } from './quality';
 import { getExtracted, readSource } from './reading';
 import { deleteSource, getSource, importBegin, importFinish, importOriginal, importPage, listSources, readPageImage, type ImportBegin } from './sources';
 import { answerChat, createNote, explainTest, getChat, getChatView, getNote, listChats, listNotes, missingExplanations, postQuestion, previewChatContext } from './teach';
@@ -178,6 +179,8 @@ export function createApi(core: AppCore) {
     getSettings: (): AppSettings => core.getSettings(),
     updateSettings: (patch: Partial<AppSettings>): AppSettings => core.updateSettings(patch),
     usage: () => ({ used: core.limiter.used(), limit: core.limiter.limit() }),
+    /** 設定画面の「品質」欄: 検算の結果、読み取りの補正率、採点の上書き。 */
+    getQuality: () => getQuality(core),
 
     // ───── ジョブ ─────
     listJobs: (): JobInfo[] => core.jobs.list(),

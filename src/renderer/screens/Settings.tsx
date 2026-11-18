@@ -10,6 +10,7 @@ export function Settings() {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [info, setInfo] = useState<Info | null>(null);
   const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
+  const [quality, setQuality] = useState<Awaited<ReturnType<typeof api.getQuality>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [mathSample, setMathSample] = useState('2次方程式 $ax^2+bx+c=0$ の解は\n\n$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$');
@@ -19,6 +20,7 @@ export function Settings() {
       setSettings(await api.getSettings());
       setInfo(await api.appInfo());
       setUsage(await api.usage());
+      setQuality(await api.getQuality());
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -125,6 +127,76 @@ export function Settings() {
           </div>
         )}
         <ErrorBox message={ping.startError} />
+      </Section>
+
+      <Section title="品質" testId="quality">
+        <div className="hint">Claude の仕事の確かさの目安です(すべてのプロジェクトの合計)。</div>
+        {quality && (
+          <table className="grid">
+            <tbody>
+              <tr data-testid="q-verify">
+                <th>問題の検算</th>
+                <td>
+                  {quality.verify.total === 0 ? (
+                    'まだ問題を作っていません。'
+                  ) : (
+                    <>
+                      採用 <strong>{quality.verify.adopted}</strong> ・ 作り直して採用 <strong>{quality.verify.regenerated}</strong> ・ 破棄 <strong>{quality.verify.discarded}</strong>{' '}
+                      <span className="muted">
+                        (テスト {quality.verify.tests} 件。1回で通った割合 {quality.verify.adoptedRate}%)
+                      </span>
+                    </>
+                  )}
+                  <div className="hint">作った問題は、別の呼び出しで解答を見せずに解き直し、答えが一致したものだけを使っています。</div>
+                </td>
+              </tr>
+              <tr data-testid="q-problems">
+                <th>問題の読み取り</th>
+                <td>
+                  {quality.problems.rate === null ? (
+                    'まだ補正の記録がありません。'
+                  ) : (
+                    <>
+                      補正率 <strong>{quality.problems.rate}%</strong>{' '}
+                      <span className="muted">
+                        (資料 {quality.problems.sources} 件、読み取った {quality.problems.originalChars} 字のうち {quality.problems.changedChars} 字を修正、操作 {quality.problems.edits} 回)
+                      </span>
+                    </>
+                  )}
+                </td>
+              </tr>
+              <tr data-testid="q-answers">
+                <th>答案の読み取り</th>
+                <td>
+                  {quality.answers.rate === null ? (
+                    'まだ補正の記録がありません。'
+                  ) : (
+                    <>
+                      補正率 <strong>{quality.answers.rate}%</strong>{' '}
+                      <span className="muted">
+                        (答案 {quality.answers.sources} 件、読み取った {quality.answers.originalChars} 字のうち {quality.answers.changedChars} 字を修正、操作 {quality.answers.edits} 回)
+                      </span>
+                    </>
+                  )}
+                  <div className="hint">補正率が低いほど、Claude の読み取りがそのまま使えています。</div>
+                </td>
+              </tr>
+              <tr data-testid="q-grading">
+                <th>採点の上書き</th>
+                <td>
+                  {quality.grading.items === 0 ? (
+                    'まだ採点がありません。'
+                  ) : (
+                    <>
+                      <strong>{quality.grading.overridden}</strong> / {quality.grading.items} 問({quality.grading.rate}%){' '}
+                      <span className="muted">(採点したテスト {quality.grading.tests} 件)</span>
+                    </>
+                  )}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        )}
       </Section>
 
       <Section title="数式の表示の確認">
