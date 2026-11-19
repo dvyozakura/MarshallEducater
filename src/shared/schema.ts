@@ -55,6 +55,8 @@ export const SubjectRefSchema = z.object({
   /** フォルダ名にもなる ID。 */
   id: z.string().min(1),
   name: z.string().min(1),
+  /** 組み方向。無ければ科目名から決める(国語系は縦書き。src/shared/notation.ts の subjectWritingMode)。 */
+  writingMode: z.enum(['vertical', 'horizontal']).nullish(),
 });
 export type SubjectRef = z.infer<typeof SubjectRefSchema>;
 

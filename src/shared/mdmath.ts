@@ -1,6 +1,7 @@
 // Markdown+数式(LaTeX)を HTML にする。画面(renderer)と、PDF 用の HTML を作る main の両方で使う。
 import katex from 'katex';
 import { Marked } from 'marked';
+import { applyTcy, protectNotation, restoreNotation } from './notation';
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -65,10 +66,16 @@ export function extractMath(src: string): { text: string; segments: MathSegment[
   return { text, segments };
 }
 
-/** Markdown+数式を HTML にする。 */
-export function renderMarkdown(src: string): string {
-  const { text, segments } = extractMath(src ?? '');
+/**
+ * Markdown+数式+縦書きの記法(ルビ・傍線・空欄・漢文など。src/shared/notation.ts)を HTML にする。
+ * vertical なら、2桁までの数字などを縦中横にする(縦書きの表示部品の中で使う)。
+ */
+export function renderMarkdown(src: string, opts: { vertical?: boolean } = {}): string {
+  const { text: mathless, segments } = extractMath(src ?? '');
+  const { text, pieces } = protectNotation(mathless);
   let html = marked.parse(text, { async: false }) as string;
+  html = restoreNotation(html, pieces);
+  if (opts.vertical) html = applyTcy(html);
   html = html.replace(/MEMATHSEG(\d+)END/g, (_m, i: string) => {
     const seg = segments[Number(i)];
     return seg ? renderMath(seg.tex, seg.display) : '';

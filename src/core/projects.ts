@@ -12,6 +12,7 @@ import {
   type SubjectRef,
 } from '../shared/schema';
 import { initialUnitTree } from '../shared/subjects';
+import { subjectWritingMode, type WritingMode } from '../shared/notation';
 import type { AppCore } from './app';
 import { geminiProjectSettings } from './claude/engines';
 import { loadPromptFile, renderTemplate } from './claude/prompts';
@@ -39,7 +40,7 @@ export function listProjects(core: AppCore): ProjectListing {
     const file = join(p, 'project.json');
     if (!existsSync(file)) continue;
     try {
-      out.projects.push(readData(file, Files.project));
+      out.projects.push(withWritingModes(readData(file, Files.project)));
     } catch (e) {
       out.broken.push({ folder: name, error: (e as Error).message });
     }
@@ -49,7 +50,12 @@ export function listProjects(core: AppCore): ProjectListing {
 }
 
 export function getProject(core: AppCore, projectId: string): Project {
-  return readData(core.paths(projectId).projectJson, Files.project);
+  return withWritingModes(readData(core.paths(projectId).projectJson, Files.project));
+}
+
+/** 読み込み時に、組み方向の無い科目へ既定(国語系は縦書き)を入れる。 */
+function withWritingModes(p: Project): Project {
+  return { ...p, subjects: p.subjects.map((s) => ({ ...s, writingMode: subjectWritingMode(s) })) };
 }
 
 function validateInput(input: ProjectInput): ProjectInput {
@@ -129,8 +135,26 @@ function subjectsFromNames(names: string[], existing: SubjectRef[]): SubjectRef[
     let n = 2;
     while (used.has(id.toLowerCase())) id = `${safeFileName(name)}-${n++}`;
     used.add(id.toLowerCase());
-    return { id, name };
+    return { id, name, writingMode: kept?.writingMode ?? subjectWritingMode({ name }) };
   });
+}
+
+/** 科目の組み方向(縦書き/横書き)を変える。null で科目名からの既定に戻す。 */
+export function setSubjectWritingMode(core: AppCore, projectId: string, subjectId: string, mode: WritingMode | null): Project {
+  const current = getProject(core, projectId);
+  getSubject(current, subjectId);
+  const project: Project = {
+    ...current,
+    subjects: current.subjects.map((s) => (s.id === subjectId ? { ...s, writingMode: mode } : s)),
+    updatedAt: new Date().toISOString(),
+  };
+  writeData(core.paths(projectId).projectJson, Files.project, project);
+  return project;
+}
+
+/** 科目の組み方向(設定が無ければ国語系は縦書き)。既存のプロジェクトも読み込み時にこれで決まる。 */
+export function writingModeOf(core: AppCore, projectId: string, subjectId: string): WritingMode {
+  return subjectWritingMode(getSubject(getProject(core, projectId), subjectId));
 }
 
 export function createProject(core: AppCore, input: ProjectInput): Project {

@@ -279,3 +279,13 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - 接続確認: `--version` → 短い呼び出し1回(ping)。結果は設定に残す(画面の「保存する」では上書きしない)。
 - smoke_real `--engines`: 入っているエンジンごとに、問題を1問(選択式)作る → Claude で検算 → 採点(そのエンジンの呼び出しは2回、上限3回)。未導入・未ログインは飛ばす。
 
+
+## 国語の縦書き: 組み方向と表示部品(セッション3 項目2、数値は暫定)
+- 科目(`project.json` の `subjects[]`)に `writingMode`(`vertical` / `horizontal`)を足した。無ければ科目名から決める: 名前に「国語・現代文・古文・漢文・古典」を含む科目は縦書き、ほかは横書き(`src/shared/notation.ts` の `subjectWritingMode`)。既存のプロジェクトは読み込み時(`getProject` / `listProjects`)にこの既定で埋める。新しく作る科目は作成時に書き込む。
+- 科目のページの「科目の設定」で変えられる(縦書き/横書きと、見本の表示)。
+- 縦書きの表示部品 `Tate`(`src/renderer/components.tsx`): CSS の `writing-mode: vertical-rl`、`text-orientation: mixed`(英字・3桁以上の数字は横倒し、かな・漢字は正立)。行は右から左。はみ出した分は横スクロール。
+  - ホイール: 下へ回す = 先へ(左へ)。矢印 ↓← = 先へ、↑→ = 戻る、PageDown/スペース・PageUp = 1画面分、Home = 先頭(右端)、End = 末尾(左端)。
+  - 文字の大きさ: 14/16/18/20/24/28px(既定 18px)。アプリ全体で1つ、localStorage に保存。
+  - 書体: 游明朝 → MS 明朝 → serif。行間 1.95。句読点・かっこ・長音・ダッシュは書体の縦書き用の字形(vert)に任せる(游明朝で縦向きになることをスクリーンショットで確認)。
+  - 縦中横: 2桁までの半角数字と「!?」「!!」を自動で `text-combine-upright: all`(`applyTcy`)。タグの属性・文字参照・KaTeX の中は触らない。
+  - 数式(KaTeX)・表・図は縦書きの中でも横書きのまま、1つのかたまりとして置く。

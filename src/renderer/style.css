@@ -652,3 +652,62 @@ table.grid td.miss { font-weight: 700; color: var(--low); background: #fff5f5; }
 .madeby { display: inline-block; font-size: 11px; color: #667; border: 1px solid #ccd; border-radius: 8px; padding: 0 6px; margin-left: 4px; }
 fieldset.engine-config { border: 1px solid #dde; border-radius: 6px; margin: 6px 0; padding: 4px 8px; }
 ul.plain { list-style: none; padding-left: 0; }
+
+/* ───────── 縦書き(国語)と縦書きの記法 ───────── */
+.tate {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 30em;
+  max-height: 72vh;
+  width: 100%;
+  max-width: 100%;
+  font-family: 'Yu Mincho', 'YuMincho', '游明朝', 'MS Mincho', 'Hiragino Mincho ProN', serif;
+  line-height: 1.95;
+  line-break: strict;
+  background: #fffefb;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.8em 0.9em;
+  box-sizing: border-box;
+}
+.tate:focus-visible { outline: 2px solid #7aa2e3; }
+.tate p { margin: 0 0 0 0.5em; text-indent: 1em; }
+.tate h1, .tate h2, .tate h3, .tate h4 { margin: 0 0 0 0.6em; font-size: 1.1em; }
+.tate ul, .tate ol { margin: 0; padding: 0; padding-inline-start: 1.5em; }
+.tate .tcy { text-combine-upright: all; }
+.tate .katex, .tate .math-error { writing-mode: horizontal-tb; display: inline-block; }
+.tate .katex-display, .tate table, .tate pre, .tate img { writing-mode: horizontal-tb; }
+.tate-fs { display: inline-flex; gap: 4px; align-items: center; }
+
+/* 記法: 横書きでも崩れないように基本を決め、縦書きで向きを合わせる */
+.nt-line-text { text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 0.25em; }
+.nt-line-wavy .nt-line-text { text-decoration-style: wavy; }
+.nt-line-double .nt-line-text { text-decoration-style: double; }
+.tate .nt-line-text { text-underline-position: right; }
+.nt-label { font-size: 0.6em; font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; margin: 0 0.15em; padding: 0 0.1em; border: 1px solid currentColor; border-radius: 2px; font-weight: bold; text-indent: 0; }
+.tate .nt-label { text-combine-upright: all; margin: 0.15em 0; }
+.tate .nt-blank { text-orientation: upright; }
+.nt-nobr { white-space: nowrap; }
+.nt-dots { text-emphasis: filled sesame; -webkit-text-emphasis: filled sesame; text-emphasis-position: over right; -webkit-text-emphasis-position: over right; }
+.nt-blank { display: inline-block; inline-size: calc(var(--nt-len, 3) * 1em); border: 1px solid currentColor; text-align: center; font-weight: bold; font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; margin: 0 0.2em; line-height: 1.4; text-indent: 0; }
+.nt-para { display: inline-block; font-size: 0.7em; border: 1px solid currentColor; border-radius: 50%; min-width: 1.4em; text-align: center; margin: 0 0.4em 0 0; font-family: 'Yu Gothic UI', 'Meiryo', sans-serif; text-indent: 0; }
+.tate .nt-para { text-combine-upright: all; margin: 0 0 0.4em 0; min-width: 0; min-height: 1.4em; }
+.nt-noteref { font-size: 0.6em; vertical-align: super; }
+.tate .nt-noteref { vertical-align: baseline; text-combine-upright: all; }
+.nt-notedef { font-size: 0.9em; color: #333; }
+
+/* 漢文: 送り仮名は字の右下、返り点(と再読文字の2回目の読み)は左下(縦書き)。横書きでは字のあとに小さく上下2段 */
+.kanbun { margin: 0.4em 0; line-height: 2.4; letter-spacing: 0.1em; text-indent: 0; }
+.kanbun-hakubun { letter-spacing: 0.25em; }
+.kb-u, .nt-saidoku { white-space: nowrap; }
+.kb-ann { display: inline-flex; flex-direction: column; font-size: 0.5em; line-height: 1.15; vertical-align: middle; letter-spacing: 0; text-indent: 0; }
+.kb-okuri, .kb-left { min-block-size: 1.15em; white-space: nowrap; }
+.tate .kb-ann { vertical-align: baseline; }
+
+.tate.tate-mini { font-size: 16px !important; padding: 0.3em; width: 7em; }
+.notation-table td { vertical-align: top; }
+.notation-samples h3 { font-size: 14px; margin: 14px 0 4px; }
+/* 科目の設定(組み方向) */
+.subject-settings { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 8px 0; background: var(--panel); }

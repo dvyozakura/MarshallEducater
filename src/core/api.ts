@@ -16,7 +16,8 @@ import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
 import { getGrading, getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
-import { createProject, getProject, getSubject, listProjects, setProjectEngines, updateProject } from './projects';
+import { createProject, getProject, getSubject, listProjects, setProjectEngines, setSubjectWritingMode, updateProject } from './projects';
+import type { WritingMode } from '../shared/notation';
 
 /** 役割の代表のプロンプトの種類(割り当ての結果を見せるのに使う)。 */
 function roleKind(role: EngineRole): string {
@@ -268,6 +269,8 @@ export function createApi(core: AppCore) {
     getProject: (projectId: string) => getProject(core, projectId),
     createProject: (input: ProjectInput) => createProject(core, input),
     updateProject: (projectId: string, input: ProjectInput) => updateProject(core, projectId, input),
+    /** 科目の組み方向(縦書き/横書き)。 */
+    setSubjectWritingMode: (projectId: string, subjectId: string, mode: WritingMode) => setSubjectWritingMode(core, projectId, subjectId, mode),
 
     // ───── 単元 ─────
     getUnits: (projectId: string, subjectId: string) => getUnits(core, projectId, subjectId),

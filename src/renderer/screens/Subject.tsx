@@ -3,7 +3,9 @@ import type { Project } from '../../shared/schema';
 import { api, errorMessage } from '../api';
 import { ErrorBox } from '../components';
 import { useNav } from '../nav';
+import { subjectWritingMode } from '../../shared/notation';
 import { ChatsTab } from './subject/ChatsTab';
+import { SubjectSettings } from './subject/SubjectSettings';
 import { NotesTab } from './subject/NotesTab';
 import { SourcesTab } from './subject/SourcesTab';
 import { TestsTab } from './subject/TestsTab';
@@ -28,6 +30,7 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
   const nav = useNav();
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
   const current = (SUBJECT_TABS.find((t) => t.id === tab)?.id ?? 'tests') as SubjectTabId;
 
   useEffect(() => {
@@ -45,7 +48,12 @@ export function Subject({ projectId, subjectId, tab }: { projectId: string; subj
       <div className="row">
         <h1 data-testid="subject-name">{subject.name}</h1>
         <span className="muted">{project.name}</span>
+        <span className="muted" data-testid="subject-writing">{subjectWritingMode(subject) === 'vertical' ? '縦書き' : '横書き'}</span>
+        <button className="small" data-testid="subject-settings-toggle" onClick={() => setShowSettings((v) => !v)}>
+          {showSettings ? '科目の設定を閉じる' : '科目の設定'}
+        </button>
       </div>
+      {showSettings && <SubjectSettings project={project} subject={subject} onChanged={setProject} />}
       <div className="tabs">
         {SUBJECT_TABS.map((t) => (
           <button key={t.id} className={t.id === current ? 'tab active' : 'tab'} data-testid={`tab-${t.id}`} onClick={() => nav.go({ screen: 'subject', projectId, subjectId, tab: t.id })}>
