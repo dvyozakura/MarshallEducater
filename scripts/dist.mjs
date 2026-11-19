@@ -28,7 +28,18 @@ cpSync(resolve(root, 'out'), resolve(staging, 'out'), { recursive: true, filter:
 writeFileSync(resolve(staging, 'package.json'), JSON.stringify({ name: pkg.name, productName: name, version: pkg.version, description: pkg.description, author: pkg.author ?? name, main: pkg.main, private: true }, null, 2));
 
 // 2. Electron 本体と合わせる
-rmSync(target, { recursive: true, force: true });
+// 前のアプリのフォルダは、まず名前を変えてから消す。そのアプリが起動中だと名前を変えられないので、
+// 何も消さずに止める(起動中のアプリのファイルを途中まで消して壊さないため)
+if (existsSync(target)) {
+  const old = `${target}.old-${Date.now()}`;
+  try {
+    renameSync(target, old);
+  } catch (e) {
+    console.error(`dist: ${target} を作り直せません(${e.code})。このフォルダのアプリが起動中なら、閉じてからもう一度実行してください。何も消していません。`);
+    process.exit(1);
+  }
+  rmSync(old, { recursive: true, force: true });
+}
 let how = '@electron/packager';
 try {
   // icon: exe に埋め込むアイコン(人が用意した build/icon.ico。作り直さない)

@@ -8,7 +8,10 @@ import { checkExeIcon } from './exe-icon.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const name = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).productName;
-const exe = resolve(root, 'dist', `${name}-${process.platform}-${process.arch}`, process.platform === 'win32' ? `${name}.exe` : name);
+// --out <フォルダ>: dist.mjs の --out と同じ。調べるアプリのフォルダの置き場所(既定は dist/)
+const outIdx = process.argv.indexOf('--out');
+const distRoot = outIdx >= 0 && process.argv[outIdx + 1] ? resolve(root, process.argv[outIdx + 1]) : resolve(root, 'dist');
+const exe = resolve(distRoot, `${name}-${process.platform}-${process.arch}`, process.platform === 'win32' ? `${name}.exe` : name);
 if (!existsSync(exe)) {
   console.error(`check-dist: 実行ファイルがありません: ${exe}`);
   process.exit(1);

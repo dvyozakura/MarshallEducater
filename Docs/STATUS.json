@@ -1,1 +1,1 @@
-{"phase":"夜間セッション3:国語の縦書き・アイコン・ChatGPT の本物確認・公開の準備","done":10,"total":11,"current":"11. 最後に","detail":"項目10(インストーラ)完了。最後のビルド・全テスト・要約に着手"}
+{"phase":"夜間セッション3:国語の縦書き・アイコン・ChatGPT の本物確認・公開の準備","done":11,"total":11,"current":"完了","detail":"11 項目すべて完了。dist/ は起動中のため作り直せず(BLOCKERS.md)、release/app で確認"}
