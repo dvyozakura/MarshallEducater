@@ -18,11 +18,23 @@ if (headless) app.commandLine.appendSwitch('disable-features', 'CalculateNativeW
 
 let mainWindow: BrowserWindow | null = null;
 
+/** アプリのアイコン(Windows は .ico、ほかは .png)。見つからなければ undefined(Electron の既定)。 */
+export function appIcon(): Electron.NativeImage | undefined {
+  const file = join(__dirname, '..', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+  const img = nativeImage.createFromPath(file);
+  return img.isEmpty() ? undefined : img;
+}
+
+// タスクバーでアプリを見分ける ID(Windows)。アイコンとまとまりがこの ID に付く
+if (process.platform === 'win32') app.setAppUserModelId('MarshallEducater');
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1360,
     height: 900,
     title: 'MarshallEducater',
+    // ウィンドウの左上とタスクバーのアイコン(build/icon.* をビルド時に out/ へ写したもの)
+    icon: appIcon(),
     show: !headless,
     // 自動操作テストでは、画面の外に置いて人の作業を邪魔しない。
     // (完全に隠すと描画が止まり、Playwright の操作が1回ごとに数秒かかる)

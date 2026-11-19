@@ -337,3 +337,9 @@ Markdown の拡張記法として次の1つに決めた。読み取りは `src/s
 - 教材の PDF(国語)は、例題の解答・解説も含めて縦書きにそろえた(紙で通して読むものなので。画面では解説は横書き)。
 - smoke_real に `--kokugo`(現代文1問・漢文1問の選択式を作る → 検算。呼び出し4回まで)。画面での確認は `tests/e2e/99-view-smoke.spec.ts`(作業フォルダを `ME_SMOKE_DIR` か `tests/tmp/smoke-view-dir.txt` で渡したときだけ動く)。
 - 本物の確認を受けて: 訓読文の外の `[_…]` `[^…]` は記法の誤りにしない(解説で「登[^レ]山」と引用することがあり、やり直しが1回むだに起きた)。返り点の付け忘れを防ぐ指示(作る側)と、解き直しで返り点と書き下しが合わなければ「問題の不備」とする指示(検算側)を足した。
+
+## アプリのアイコン(セッション3 項目7)
+- 人が用意した `build/icon.ico`(16〜256px の 7 枚)と `build/icon.png`(1024px)をそのまま使う(作り直さない)。
+- 配布用の exe: `@electron/packager` の `icon` に `build/icon.ico` を渡して埋め込む。
+- ウィンドウの左上・タスクバー: ビルド時に `out/icon.ico`・`out/icon.png` へ写し、`BrowserWindow` の `icon` に指定(Windows は .ico)。開発時の起動(`npm start`)でも同じファイルを使う。タスクバーでまとめるため `app.setAppUserModelId('MarshallEducater')`。
+- 確認: `scripts/check-dist.mjs` が exe のリソースのアイコンを読み、`build/icon.ico` の 7 枚とすべて同じかを調べる(`resedit`。packager がアイコンの書き込みに使っているライブラリで、新しい依存は足していない)。Electron の既定の exe では一致しないことも確かめた。Windows の `app.getFileIcon` は汎用のアイコンを返すことがあり、確認には使えなかった。

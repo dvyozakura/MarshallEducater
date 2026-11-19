@@ -29,7 +29,8 @@ writeFileSync(resolve(staging, 'package.json'), JSON.stringify({ name: pkg.name,
 rmSync(target, { recursive: true, force: true });
 let how = '@electron/packager';
 try {
-  await packager({ dir: staging, out: dist, name, platform: process.platform, arch: process.arch, electronVersion, overwrite: true, prune: false, asar: false, quiet: true, appVersion: pkg.version });
+  // icon: exe に埋め込むアイコン(人が用意した build/icon.ico。作り直さない)
+  await packager({ dir: staging, out: dist, name, platform: process.platform, arch: process.arch, electronVersion, overwrite: true, prune: false, asar: false, quiet: true, appVersion: pkg.version, icon: resolve(root, 'build/icon.ico') });
 } catch (e) {
   console.warn(`dist: @electron/packager で作れませんでした(${e.message})。node_modules の Electron を写して作ります。`);
   how = 'node_modules/electron/dist の写し';

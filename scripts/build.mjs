@@ -37,4 +37,8 @@ for (const dir of ['cmaps', 'standard_fonts', 'wasm']) {
   cpSync(resolve(root, 'node_modules/pdfjs-dist', dir), resolve(out, 'renderer/pdfjs', dir), { recursive: true });
 }
 
+// アプリのアイコン(人が用意したもの。作り直さない)。ウィンドウの左上・タスクバー用(開発時の起動でも出す)
+cpSync(resolve(root, 'build/icon.ico'), resolve(out, 'icon.ico'));
+cpSync(resolve(root, 'build/icon.png'), resolve(out, 'icon.png'));
+
 console.log('build: OK -> out/');
