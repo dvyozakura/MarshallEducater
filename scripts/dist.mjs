@@ -9,7 +9,9 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 const electronVersion = JSON.parse(readFileSync(resolve(root, 'node_modules/electron/package.json'), 'utf8')).version;
-const dist = resolve(root, 'dist');
+// --out <フォルダ>: 作る場所を変える(インストーラ用。dist/ のアプリが起動中で消せないときも作れるように)
+const outIdx = process.argv.indexOf('--out');
+const dist = outIdx >= 0 && process.argv[outIdx + 1] ? resolve(root, process.argv[outIdx + 1]) : resolve(root, 'dist');
 const staging = resolve(dist, 'app-staging');
 const name = pkg.productName; // アプリ名「MarshallEducater」(綴りはこのまま)
 const target = resolve(dist, `${name}-${process.platform}-${process.arch}`);

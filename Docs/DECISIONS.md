@@ -359,3 +359,12 @@ Markdown の拡張記法として次の1つに決めた。読み取りは `src/s
 - 依存のライセンス一覧: `scripts/third-party-notices.mjs`(`npm run notices`)が、`dependencies` を順にたどった本番用の依存と Electron の、名前・版・ライセンス・配布元とライセンスの本文を `THIRD_PARTY_NOTICES.md` に書く(devDependencies は配布物に入らないので含めない)。Chromium などは配布フォルダの `LICENSES.chromium.html` を参照と書いた。
 - README の画面の画像は `Docs/images/`。偽の AI・ダミーのデータ(サンプル大学)で撮る `tests/e2e/98-readme-shots.spec.ts`(`tests/tmp/readme-shots.flag` があるときだけ動く。ふだんのテストで画像を書き換えないため)。
 - `.gitignore` に `PV/` を足した(作業ツリーに人の別の作業のフォルダがあり、中にユーザー名が入っていたため。中身には触れていない)。
+
+## インストーラ(セッション3 項目10)
+- 道具は electron-builder(NSIS)。**依存に足した**(devDependencies、26.18.0)。理由: Windows のユーザー単位のインストーラ(管理者の権限なし・入れる場所を選べる・ショートカット・アンインストーラ・上書きインストール)を、設定だけで作れる事実上の標準のため。公式サイト(electron.build)のページは今回中身を取得できなかったので、入れた版に入っている設定の定義(`node_modules/app-builder-lib/scheme.json`)と NSIS のひな形(`templates/nsis/`)で、選んだ設定の意味と既定値を確かめた。
+- 設定(`scripts/installer.mjs` の `builderConfig`): `oneClick: false`(案内つき)、`perMachine: false`・`allowElevation: false`(ユーザー単位、既定の入れ先は `%LOCALAPPDATA%\Programs\MarshallEducater`)、`allowToChangeInstallationDirectory: true`、デスクトップとスタートメニューのショートカット、アイコンは `build/icon.ico`(インストーラ・アンインストーラとも)、`deleteAppDataOnUninstall: false`、ファイル名 `${productName}-Setup-${version}.${ext}`、出力先 `release/`。版は package.json から。
+- 中身は、`scripts/dist.mjs` で `release/app/` に作ったアプリのフォルダをそのまま使う(`prepackaged`)。node_modules を入れない今の配布の形を保つため。既存の「配布用フォルダ」(`dist/`、`./Tools/build_dist.sh`)も残した。`dist.mjs` に `--out` を足したのは、`dist/` のアプリが起動中(人が使っている)だと消して作り直せないため。
+- アンインストールしても、学習データ(ドキュメント/MarshallEducaterData)には触れない(アンインストーラが消すのはインストール先とショートカット・登録だけ)。設定(`%APPDATA%\MarshallEducater`)も消さない。上書きインストールでも両方残る。
+- コード署名はしない(証明書が無い)。初回の SmartScreen の警告と進め方を README に書いた。
+- 実行は npm スクリプト: `npm run installer`(ビルド → アプリのフォルダ → インストーラ)、`npm run installer:test`(さらに無人で `tests/tmp` に入れる → 起動してプロジェクトを作る → 上書きインストール → データが残る → アンインストール → 実行ファイル・ショートカット・登録が消え、データは残る、を確かめる)。人がすでにこのアプリを入れている PC では、そのインストールを壊さないよう無人の確認は飛ばす。
+- GitHub Actions(`.github/workflows/release.yml`): `v*` のタグで、windows-latest で型チェック・単体テスト(偽の AI)→ インストーラ → タグと版の一致を確かめて Release(下書き)に添付。手元では試せない(未確認)。

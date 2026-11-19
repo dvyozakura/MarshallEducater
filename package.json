@@ -16,7 +16,9 @@
     "dist": "node scripts/dist.mjs",
     "check:privacy": "node scripts/check-privacy.mjs",
     "check:history": "node scripts/check-history.mjs",
-    "notices": "node scripts/third-party-notices.mjs"
+    "notices": "node scripts/third-party-notices.mjs",
+    "installer": "node scripts/installer.mjs",
+    "installer:test": "node scripts/installer.mjs --test"
   },
   "devDependencies": {
     "@electron/packager": "^20.3.0",
@@ -27,6 +29,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
     "electron": "^45.3.3",
+    "electron-builder": "^26.18.0",
     "esbuild": "^0.28.2",
     "typescript": "^7.0.2",
     "vite": "^8.3.8",
