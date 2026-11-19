@@ -705,6 +705,8 @@ ul.plain { list-style: none; padding-left: 0; }
 .kb-ann { display: inline-flex; flex-direction: column; font-size: 0.5em; line-height: 1.15; vertical-align: middle; letter-spacing: 0; text-indent: 0; }
 .kb-okuri, .kb-left { min-block-size: 1.15em; white-space: nowrap; }
 .tate .kb-ann { vertical-align: baseline; }
+.tate .kb-okuri { position: relative; left: 0.55em; }
+.tate .kb-left { position: relative; left: -0.55em; }
 
 .tate.tate-mini { font-size: 16px !important; padding: 0.3em; width: 7em; }
 .notation-table td { vertical-align: top; }

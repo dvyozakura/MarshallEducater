@@ -74,3 +74,63 @@ test('組み方向: 国語は既定で縦書き、科目の設定で変えられ
   await expect(page.getByTestId('subject-writing')).toHaveText('縦書き');
   await t.app.close();
 });
+
+test('縦書きの記法: 一覧と、現代文・古文・漢文の見本(自作)を縦書きで表示。横書きでも壊れない', async () => {
+  mkdirSync(shotsDir, { recursive: true });
+  const t = await launchApp();
+  const { page } = t;
+  await createProject(page, { university: 'ダミー大学', faculty: '文学部', examDate: '2027-02-25', subjects: ['漢文'] });
+  await page.getByTestId('subject-card').click();
+  await page.getByTestId('subject-settings-toggle').click();
+  await page.getByTestId('notation-help-toggle').click();
+  await expect(page.getByTestId('notation-row')).toHaveCount(13);
+  // 記法が文字のまま残っていない
+  for (const id of ['sample-gendaibun', 'sample-kobun', 'sample-kanbun']) {
+    const el = page.getByTestId(id);
+    await expect(el).toHaveAttribute('data-writing', 'vertical');
+    const text = await el.innerText();
+    expect(text).not.toContain('{{');
+    expect(text).not.toContain('[_');
+    expect(text).not.toContain(':::');
+    await el.screenshot({ path: join(shotsDir, `s3-3-${id}.png`) });
+  }
+  const g = page.getByTestId('sample-gendaibun');
+  await expect(g.locator('.nt-line-solid')).toHaveCount(1);
+  await expect(g.locator('.nt-line-wavy')).toHaveCount(1);
+  await expect(g.locator('.nt-line-double')).toHaveCount(1);
+  await expect(g.locator('.nt-dots')).toHaveCount(1);
+  await expect(g.locator('.nt-blank')).toHaveCount(1);
+  await expect(g.locator('.nt-para')).toHaveCount(3);
+  await expect(g.locator('.nt-notedef')).toHaveCount(1);
+  // 傍線は字の右(縦書きのとき)
+  expect(await g.locator('.nt-line-text').first().evaluate((el) => getComputedStyle(el).textUnderlinePosition)).toContain('right');
+  const k = page.getByTestId('sample-kanbun');
+  await expect(k.locator('.kanbun')).toHaveCount(3);
+  await expect(k.locator('[data-kind="白文"]')).toHaveCount(1);
+  await expect(k.locator('[data-kind="訓読文"] .kb-kaeri').filter({ hasText: '三' })).toHaveCount(2);
+  await expect(k.locator('.nt-saidoku')).toHaveCount(1);
+  // 送り仮名は字の右、返り点は字の左(縦書き)
+  const pos = await k.locator('[data-kind="訓読文"] .kb-u').nth(1).evaluate((u) => {
+    const base = u.firstChild as Text;
+    const r = document.createRange();
+    r.selectNodeContents(base);
+    const b = r.getBoundingClientRect();
+    const ok = u.querySelector('.kb-okuri')!.getBoundingClientRect();
+    const ka = u.querySelector('.kb-kaeri')!.getBoundingClientRect();
+    return { baseCenter: (b.left + b.right) / 2, okuri: (ok.left + ok.right) / 2, kaeri: (ka.left + ka.right) / 2, baseBottom: b.bottom, okTop: ok.top };
+  });
+  expect(pos.okuri).toBeGreaterThan(pos.baseCenter);
+  expect(pos.kaeri).toBeLessThan(pos.baseCenter);
+  expect(pos.okTop).toBeGreaterThanOrEqual(pos.baseBottom - 2);
+  await page.getByTestId('notation-help').screenshot({ path: join(shotsDir, 's3-3-notation-table.png') });
+
+  // 横書きにしても、同じ記法が壊れずに出る
+  await page.getByTestId('writing-mode').selectOption('horizontal');
+  const hs = page.getByTestId('writing-sample');
+  await expect(hs).not.toHaveAttribute('data-writing', 'vertical');
+  expect(await hs.innerText()).not.toContain('{{');
+  await expect(hs.locator('ruby')).toHaveCount(1);
+  await expect(hs.locator('.nt-blank')).toHaveCount(1);
+  await hs.screenshot({ path: join(shotsDir, 's3-3-horizontal-sample.png') });
+  await t.app.close();
+});
