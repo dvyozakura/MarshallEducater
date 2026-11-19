@@ -27,6 +27,8 @@ import { cropFigure, modeInstructions, testProblemsFor, totalChars } from './rea
 import { listPages, listSources, sourcePaths, testIdOfSubmission } from './sources';
 import { Files, readData, readDataOr, writeData } from './store';
 import { getUnits } from './units';
+import { isTategaki, writingModeOf } from './projects';
+import type { WritingMode } from '../shared/notation';
 
 export interface CorrectionView {
   source: SourceMeta;
@@ -37,6 +39,8 @@ export interface CorrectionView {
   targets: Array<{ number: string; format: string; summary: string }> | null;
   units: Array<{ id: string; name: string }>;
   stats: { originalChars: number; changedChars: number; edits: number };
+  /** 科目の組み方向(国語は縦書き)。プレビューの向きに使う。 */
+  writingMode: WritingMode;
 }
 
 /** 編集できる項目。 */
@@ -181,6 +185,7 @@ function view(core: AppCore, projectId: string, subjectId: string, sourceId: str
     pages: listPages(paths),
     targets: testProblemsFor(core, projectId, subjectId, source),
     units: leafUnits(getUnits(core, projectId, subjectId).tree).map((u) => ({ id: u.id, name: u.fullName })),
+    writingMode: writingModeOf(core, projectId, subjectId),
     stats: { originalChars: corr?.originalChars ?? 0, changedChars: corr?.changedChars ?? 0, edits: corr?.entries.length ?? 0 },
   };
 }
@@ -419,6 +424,7 @@ export async function rereadProblem(core: AppCore, projectId: string, subjectId:
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'reread_problem',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars: {
       modeLabel: mode === 'answers' ? '答案' : '問題',
       subjectName: subject.name,

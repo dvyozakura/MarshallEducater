@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ENGINE_CAPS, ENGINE_SHORT, type EngineId, type MadeBy } from '../../shared/engines';
 import type { FailureKind } from '../../shared/failures';
 import { classifyFailureText, failureTitle } from '../../shared/failures';
+import { notationErrors } from '../../shared/notation';
 import { ensureDir, newId, writeFileAtomic } from '../fsutil';
 import { extractJsonText } from './engines';
 import type { DailyLimiter } from './limiter';
@@ -74,6 +75,24 @@ export interface StructuredCall<T> {
   check?: (data: T) => string | null;
   /** エンジンを名指しする(接続確認など)。無ければ役割の割り当てに従う。 */
   engine?: EngineId;
+  /** 国語(縦書き)の科目か。true なら記法の説明をプロンプトに足し、出力の記法の誤りもやり直させる。 */
+  tategaki?: boolean;
+}
+
+/** 出力の中の文字列から、縦書きの記法の誤りを探す(図の SVG は対象外)。 */
+export function notationProblems(data: unknown): string | null {
+  const found: string[] = [];
+  const walk = (v: unknown, path: string) => {
+    if (found.length >= 8) return;
+    if (typeof v === 'string') {
+      for (const e of notationErrors(v)) found.push(`- ${path || '(全体)'}: ${e}`);
+    } else if (Array.isArray(v)) v.forEach((x, i) => walk(x, path ? `${path}.${i}` : String(i)));
+    else if (v && typeof v === 'object') {
+      for (const [k, x] of Object.entries(v)) if (!/svg/i.test(k)) walk(x, path ? `${path}.${k}` : k);
+    }
+  };
+  walk(data, '');
+  return found.length ? `縦書きの記法の書き方に誤りがあります。直してください:\n${found.slice(0, 8).join('\n')}` : null;
 }
 
 export interface StructuredResult<T> {
@@ -159,6 +178,7 @@ export async function callClaude<T>(c: StructuredCall<T>): Promise<StructuredRes
       outputFile: outputRel,
       schema: c.schema,
       retryError,
+      tategaki: c.tategaki,
       ...(inline ? { inline: { input: c.input, images } } : {}),
     });
     rmSync(outputFile, { force: true });
@@ -191,7 +211,8 @@ export async function callClaude<T>(c: StructuredCall<T>): Promise<StructuredRes
       const json = run.resultText ? extractJsonText(run.resultText) : null;
       if (json !== null) writeFileAtomic(outputFile, json);
     }
-    const v = readAndValidate(outputFile, c.schema, c.check);
+    const check = c.tategaki ? (d: T) => notationProblems(d) ?? c.check?.(d) ?? null : c.check;
+    const v = readAndValidate(outputFile, c.schema, check);
     if (v.ok) {
       writeLog(c.projectDir, callId, c.kind, attempt, { ...base, outcome: 'ok', output: v.data });
       rmSync(ioDir, { recursive: true, force: true });

@@ -2,12 +2,45 @@ import 'katex/dist/katex.min.css';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { madeByLabel, type MadeBy } from '../shared/engines';
 import { renderMarkdown, svgToImgHtml } from '../shared/mdmath';
+import { api } from './api';
 
 /** Markdown+数式(KaTeX)+縦書きの記法の表示。vertical なら縦書きの表示部品(Tate)に入れる。 */
-export function Md({ text, className, testId, vertical, height }: { text: string; className?: string; testId?: string; vertical?: boolean; height?: string }) {
-  const html = useMemo(() => renderMarkdown(text, { vertical }), [text, vertical]);
+export function Md({
+  text,
+  className,
+  testId,
+  vertical,
+  height,
+  verticalInline,
+}: {
+  text: string;
+  className?: string;
+  testId?: string;
+  vertical?: boolean;
+  height?: string;
+  /** 縦書きの短い文(選択肢など)。スクロールの枠を付けず、そのまま縦に組む。 */
+  verticalInline?: boolean;
+}) {
+  const html = useMemo(() => renderMarkdown(text, { vertical: vertical || verticalInline }), [text, vertical, verticalInline]);
   if (vertical) return <Tate html={html} className={className} testId={testId} height={height} />;
+  if (verticalInline) return <div className={`md tate-inline ${className ?? ''}`} data-testid={testId} data-writing="vertical" dangerouslySetInnerHTML={{ __html: html }} />;
   return <div className={`md ${className ?? ''}`} data-testid={testId} dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/** 科目が縦書きか(国語は既定で縦書き)。読み込むまでは false。 */
+export function useVertical(projectId: string, subjectId: string): boolean {
+  const [v, setV] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    api.getWritingMode(projectId, subjectId).then(
+      (m) => alive && setV(m === 'vertical'),
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, [projectId, subjectId]);
+  return v;
 }
 
 const TATE_FS_KEY = 'me.tateFontSize';

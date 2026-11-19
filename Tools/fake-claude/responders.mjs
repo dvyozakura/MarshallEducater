@@ -24,7 +24,7 @@ function adjustUnits({ input, mode }) {
  * 問題: 1ページにつき2問。前のページ群の続きがあるとき(previousTail)は、先頭を「続き」として返す。
  * 答案: テストの設問ごとに1つ。内容は control.options.scanAnswers(設問番号 → 答案)で指定できる。
  */
-function readPages({ input, control, mode }) {
+function readPages({ input, control, mode, prompt }) {
   const unit = input.units?.[0]?.id ?? '';
   if (input.mode === 'answers') {
     const given = control.options?.scanAnswers ?? {};
@@ -43,6 +43,36 @@ function readPages({ input, control, mode }) {
   }
   if (mode === 'bad_page') {
     return { problems: [{ number: '第1問', body: 'ページ番号がおかしい', pages: [999] }] };
+  }
+  // 国語(縦書き): 縦書きの記法で写した問題を返す(自作の文章)。bad_notation は記法を壊す
+  if ((prompt ?? '').includes('ME_TATEGAKI: read')) {
+    const problems = [];
+    input.pages.forEach((pg) => {
+      const n = pg.page;
+      problems.push({
+        number: `第${n}問 問1`,
+        major: `第${n}問`,
+        minor: '問1',
+        points: 10,
+        body: `{{段落:1}}{霧|きり}の朝、{{傍線:ア|町はしずかだった}}。人々は${mode === 'bad_notation' ? '{{傍点|まだ' : '{{傍点|まだ}}'}眠っている。\n\n問1 傍線部アのように感じたのはなぜか。三十字以内で説明せよ。`,
+        answerFormat: 'essay',
+        unit,
+        pages: [n],
+        uncertain: [{ text: '{{傍線:ア|町はしずかだった}}', reason: '傍線の範囲がかすれていて読みにくい' }],
+      });
+      problems.push({
+        number: `第${n}問 問2`,
+        major: `第${n}問`,
+        minor: '問2',
+        points: 10,
+        body: `次の漢文の書き下し文として正しいものを選べ。\n\n:::漢文 訓読文\n夜[_ニ]登[_ル][^レ]楼[_ニ]。\n:::`,
+        choices: ['夜に楼に登る。', '夜に登りて楼す。', '楼に夜登る。', '夜楼に登らず。'],
+        answerFormat: 'choice',
+        unit,
+        pages: [n],
+      });
+    });
+    return { problems };
   }
   const problems = [];
   input.pages.forEach((pg, idx) => {
@@ -103,6 +133,12 @@ function rereadProblem({ input }) {
   };
 }
 
+/** 国語(縦書き)の偽の問題の頭: 自作の短い文章と、縦書きの記法。broken なら記法を閉じ忘れる。 */
+function kokugoHead(head, a, b, broken) {
+  const line = broken ? '{{傍線:ア|時計' : '{{傍線:ア|時計}}';
+  return [head, '次の文章を読んで、問いに答えよ。', `{{段落:1}}{駅|えき}の${line}は、毎朝すこしずつ遅れる。{{空欄:A}}に入る数を考えながら、${a} 分と ${b} 分を合わせた遅れを求める。`, '問 傍線部アについて、'].join('\n\n');
+}
+
 const FAKE_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120"><polygon points="20,100 180,100 180,20" fill="none" stroke="#000" stroke-width="2"/><text x="90" y="116" font-size="12">図</text></svg>';
 
 /** モード「名前:1,3」の番号の一覧を取り出す(番号が無ければ「全部」= null)。名前が違えば false。 */
@@ -120,7 +156,8 @@ const hits = (targets, index) => targets !== false && (targets === null || targe
  * 問題の作成: 注文ごとに「a + b を計算せよ」という問題を作る(答えが問題文から決まるので、偽の検算と採点が照らし合わせられる)。
  * 作り直し(avoid あり)では数を変える。モード with_figure / bad_svg[:番号] で図を付ける。
  */
-function generateProblems({ input, mode }) {
+function generateProblems({ input, mode, prompt }) {
+  const kokugo = (prompt ?? '').includes('ME_TATEGAKI: write');
   const badSvg = modeTargets(mode, 'bad_svg');
   const withFigure = modeTargets(mode, 'with_figure');
   return {
@@ -131,7 +168,9 @@ function generateProblems({ input, mode }) {
       const base = { unitId: r.unitId, difficulty: r.difficulty, format: r.format, points: r.format === 'essay' ? 20 : 10, figureSvg: null };
       if (!r.noFigure && hits(badSvg, r.index)) base.figureSvg = '<svg><script>alert(1)</script></svg>';
       else if (!r.noFigure && hits(withFigure, r.index)) base.figureSvg = FAKE_SVG;
-      const head = `【${r.unitName}・${r.origin}${input.trend ? '・傾向反映' : ''}】`;
+      const head0 = `【${r.unitName}・${r.origin}${input.trend ? '・傾向反映' : ''}】`;
+      // 国語(縦書き)のときは、縦書きの記法を含む本文にする(答えは同じく a + b から決まる)。bad_notation は記法を壊す
+      const head = kokugo ? kokugoHead(head0, a, b, mode === 'bad_notation') : head0;
       const solution = `$${a}$ と $${b}$ を足すと $${sum}$。`;
       if (r.format === 'choice') {
         return { ...base, body: `${head} $${a} + ${b}$ の値として正しいものを選べ。`, choices: [`$${sum - 1}$`, `$${sum}$`, `$${sum + 1}$`, `$${sum + 10}$`], answer: '2', rubric: '', solution };

@@ -10,6 +10,7 @@ import { getProject, getSubject } from './projects';
 import { Files, readData } from './store';
 import { createTest, listTests } from './tests';
 import { getUnits, projectBrief } from './units';
+import { isTategaki } from './projects';
 
 /** 設計で受け付ける問題数の上限(暫定)。多すぎる設計は、先頭からこの数までを使う。 */
 export const MAX_DESIGN_ITEMS = 30;
@@ -38,6 +39,7 @@ export async function designTest(core: AppCore, projectId: string, subjectId: st
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'design_test',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars: { subjectName: subject.name, purpose: TEST_KIND_LABEL[kind], rules: loadPromptSection('design_test_rules', kind) },
     input: {
       subject: subject.name,

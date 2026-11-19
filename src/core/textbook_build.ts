@@ -36,6 +36,8 @@ import { saveTest } from './tests';
 import { getTrend } from './trend';
 import { projectBrief } from './units';
 import { getWeaknessView } from './weakness';
+import { isTategaki } from './projects';
+import { subjectWritingMode } from '../shared/notation';
 
 // ───── 数値は暫定(DECISIONS.md に記録) ─────
 /** 1章を作るのにかかる呼び出しの目安(本文 1+問題づくり 1+解き直し 1+照らし合わせ 0〜1+点検 1+修正 0〜1)。 */
@@ -105,6 +107,11 @@ export function chapterMarkdown(ch: Chapter, no: number): string {
 
 // ───────── 点検と修正(章の本文・補足で共通) ─────────
 
+/** 点検・修正の対象の科目が国語(縦書き)か。 */
+function reviewTategaki(t: ReviewTarget): boolean {
+  return t.project.subjects.some((s) => s.name === t.subjectName && subjectWritingMode(s) === 'vertical');
+}
+
 export interface ReviewTarget {
   projectId: string;
   subjectName: string;
@@ -142,6 +149,7 @@ export async function reviewAndRevise(core: AppCore, t: ReviewTarget, ctx: JobCo
   const review = await callClaude({
     projectDir: core.projectDir(t.projectId),
     kind: 'chapter_review',
+    tategaki: reviewTategaki(t),
     vars,
     input: { project: projectBrief(t.project), chapter: t.chapterTitle, target: t.target, sections: t.sections, examples, context: t.context ?? null },
     schema: ChapterReviewOutputSchema,
@@ -157,6 +165,7 @@ export async function reviewAndRevise(core: AppCore, t: ReviewTarget, ctx: JobCo
   const revise = await callClaude({
     projectDir: core.projectDir(t.projectId),
     kind: 'chapter_revise',
+    tategaki: reviewTategaki(t),
     vars,
     input: { project: projectBrief(t.project), chapter: t.chapterTitle, target: t.target, sections: t.sections, figures: t.figures, issues, examples },
     schema: ChapterReviseOutputSchema,
@@ -250,6 +259,7 @@ export async function buildChapter(
   const body = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'chapter_body',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars,
     input: {
       subject: subject.name,
@@ -410,6 +420,7 @@ export async function addSupplement(core: AppCore, projectId: string, subjectId:
   const sup = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'chapter_supplement',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars: { subjectName: subject.name, chapterTitle },
     input: {
       project: projectBrief(project),

@@ -32,6 +32,7 @@ import { getChapter, getTextbookView } from './textbook';
 import { getTrend } from './trend';
 import { getUnits, projectBrief } from './units';
 import { dominantMistake, getWeaknessView } from './weakness';
+import { isTategaki } from './projects';
 
 // ───── 数値は暫定(DECISIONS.md に記録) ─────
 /** 1回の呼び出しで解説を書かせる設問の数。 */
@@ -126,6 +127,7 @@ export async function explainTest(core: AppCore, projectId: string, subjectId: s
     const r = await callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'explain',
+      tategaki: isTategaki(core, projectId, subjectId),
       vars: { subjectName: subject.name, testTitle: test.title },
       input: {
         subject: subject.name,
@@ -247,6 +249,7 @@ export async function createNote(core: AppCore, projectId: string, subjectId: st
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'note',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars: { subjectName: subject.name, unitName: unit.name },
     input: {
       subject: subject.name,
@@ -488,6 +491,7 @@ export async function answerChat(core: AppCore, projectId: string, subjectId: st
     callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'chat',
+      tategaki: isTategaki(core, projectId, subjectId),
       vars: { subjectName: subject.name },
       input: {
         subject: subject.name,

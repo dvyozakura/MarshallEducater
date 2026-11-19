@@ -214,3 +214,12 @@ export function getSubject(project: Project, subjectId: string): SubjectRef {
   if (!s) throw new Error(`科目 ${subjectId} はこのプロジェクトにありません`);
   return s;
 }
+
+/** 国語(縦書き)の科目か(Claude への指示に縦書きの記法を足すかどうか)。読めなければ false。 */
+export function isTategaki(core: AppCore, projectId: string, subjectId: string): boolean {
+  try {
+    return writingModeOf(core, projectId, subjectId) === 'vertical';
+  } catch {
+    return false;
+  }
+}

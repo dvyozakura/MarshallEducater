@@ -21,6 +21,7 @@ import type { JobContext } from './jobs';
 import { getProject, getSubject } from './projects';
 import { Files, readData } from './store';
 import { getUnits, projectBrief, unitNameMap } from './units';
+import { subjectWritingMode } from '../shared/notation';
 
 /** 1問ぶんの注文。 */
 export interface ProblemRequest {
@@ -118,6 +119,8 @@ interface Env {
   unitName: (id: string) => string;
   madeBy?: MadeBy;
   verifiedBy?: MadeBy;
+  /** 国語(縦書き)の科目か。 */
+  tategaki: boolean;
 }
 
 async function generate(env: Env, requests: Array<ProblemRequest & { avoid?: { body: string; reason: string } | null; noFigure?: boolean }>): Promise<GeneratedProblem[]> {
@@ -128,6 +131,7 @@ async function generate(env: Env, requests: Array<ProblemRequest & { avoid?: { b
   const r = await callClaude({
     projectDir: core.projectDir(args.projectId),
     kind: 'generate_problems',
+    tategaki: env.tategaki,
     vars: { subjectName: env.subjectName, purpose: args.purpose },
     input: {
       subject: env.subjectName,
@@ -175,6 +179,7 @@ async function verify(env: Env, problems: GeneratedProblem[]): Promise<Verdict[]
   const solved = await callClaude({
     projectDir: core.projectDir(args.projectId),
     kind: 'solve_problems',
+    tategaki: env.tategaki,
     vars: { subjectName: env.subjectName },
     input: { subject: env.subjectName, problems: targets.map((x, n) => ({ index: n + 1, format: x.p.format, body: x.p.body, choices: x.p.choices, figureSvg: x.p.figureSvg })) },
     schema: SolveOutputSchema,
@@ -208,6 +213,7 @@ async function verify(env: Env, problems: GeneratedProblem[]): Promise<Verdict[]
     const judged = await callClaude({
       projectDir: core.projectDir(args.projectId),
       kind: 'judge_answers',
+      tategaki: env.tategaki,
       vars: { subjectName: env.subjectName },
       input: {
         subject: env.subjectName,
@@ -237,7 +243,7 @@ export async function generateVerified(core: AppCore, args: GenerateArgs, ctx: J
   if (args.requests.length === 0) throw new Error('作る問題の指定がありません');
   const project = getProject(core, args.projectId);
   const names = unitNameMap(getUnits(core, args.projectId, args.subjectId).tree);
-  const env: Env = { core, args, ctx, subjectName: getSubject(project, args.subjectId).name, unitName: (id) => names.get(id) ?? id };
+  const env: Env = { core, args, ctx, subjectName: getSubject(project, args.subjectId).name, tategaki: subjectWritingMode(getSubject(project, args.subjectId)) === 'vertical', unitName: (id) => names.get(id) ?? id };
 
   const events: VerifyEvent[] = [];
   const adopted = new Map<number, GeneratedProblem>();

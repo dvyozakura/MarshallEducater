@@ -711,5 +711,22 @@ ul.plain { list-style: none; padding-left: 0; }
 .tate.tate-mini { font-size: 16px !important; padding: 0.3em; width: 7em; }
 .notation-table td { vertical-align: top; }
 .notation-samples h3 { font-size: 14px; margin: 14px 0 4px; }
+/* 縦書きの短い文(選択肢など) */
+.tate-inline { writing-mode: vertical-rl; text-orientation: mixed; font-family: 'Yu Mincho', 'YuMincho', '游明朝', 'MS Mincho', serif; line-height: 1.8; }
+.tate-inline p { margin: 0; }
+.tate-inline .tcy { text-combine-upright: all; }
+.tate-inline .katex { writing-mode: horizontal-tb; display: inline-block; }
+/* 解く画面(国語): 右に縦書きの本文、左に解答欄 */
+.take-tate { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(0, 2.2fr); grid-template-areas: 'answer body'; gap: 12px; align-items: start; }
+.take-tate-body { grid-area: body; min-width: 0; }
+.take-tate-answer { grid-area: answer; min-width: 0; }
+.take-tate-answer .split { display: flex; flex-direction: column; }
+.take-choices.tate-choices { display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: flex-start; }
+.tate-choices .take-choice { display: flex; flex-direction: column; align-items: center; gap: 4px; max-height: 360px; padding: 6px 4px; }
+.tate-choices .take-choice .md { max-height: 320px; }
+.split-v { display: flex; flex-direction: column; gap: 8px; }
+.split-v textarea { width: 100%; box-sizing: border-box; }
+.notation-buttons { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0; }
+.warn { color: #9a5b00; }
 /* 科目の設定(組み方向) */
 .subject-settings { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; margin: 8px 0; background: var(--panel); }

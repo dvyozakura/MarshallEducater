@@ -11,6 +11,7 @@ import { getProject, getSubject } from './projects';
 import { Files, readData, writeData } from './store';
 import { getTest, testPaths } from './tests';
 import { projectBrief } from './units';
+import { isTategaki } from './projects';
 
 /** 上書きを反映した、いまの得点。 */
 export function effectiveScore(item: Pick<GradeItem, 'score' | 'override'>): number {
@@ -61,6 +62,7 @@ export async function gradeTest(core: AppCore, projectId: string, subjectId: str
     const r = await callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'grade',
+      tategaki: isTategaki(core, projectId, subjectId),
       vars: { subjectName: subject.name, testTitle: test.title },
       input: {
         subject: subject.name,

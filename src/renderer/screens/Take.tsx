@@ -3,7 +3,7 @@ import type { TakeView } from '../../core/answers';
 import { choiceMark } from '../../shared/labels';
 import { DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, TEST_KIND_LABEL, type Problem } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, Section, SvgFigure, MadeByTag } from '../components';
+import { ErrorBox, Md, Section, SvgFigure, MadeByTag, TateFontControl, useVertical } from '../components';
 import { useNav } from '../nav';
 import { PdfButtons } from './subject/TestsTab';
 
@@ -12,15 +12,15 @@ function clock(sec: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function AnswerInput({ p, value, onChange, disabled }: { p: Problem; value: string; onChange: (v: string) => void; disabled: boolean }) {
+function AnswerInput({ p, value, onChange, disabled, vertical }: { p: Problem; value: string; onChange: (v: string) => void; disabled: boolean; vertical?: boolean }) {
   if (p.format === 'choice') {
     return (
-      <div className="take-choices">
+      <div className={vertical ? 'take-choices tate-choices' : 'take-choices'} data-testid="take-choices">
         {p.choices.map((c, i) => (
           <label key={i} className={`take-choice ${value === String(i + 1) ? 'on' : ''}`} data-testid={`choice-${i + 1}`}>
             <input type="radio" name={`ans-${p.id}`} checked={value === String(i + 1)} disabled={disabled} onChange={() => onChange(String(i + 1))} />
             <span className="mark">{choiceMark(i)}</span>
-            <Md text={c} />
+            {vertical ? <Md text={c} verticalInline /> : <Md text={c} />}
           </label>
         ))}
         {value && !disabled && (
@@ -34,7 +34,7 @@ function AnswerInput({ p, value, onChange, disabled }: { p: Problem; value: stri
   return (
     <div className="split">
       <div>
-        <div className="hint">{p.format === 'short' ? '答え' : '考え方と答え'}(数式は $…$ で囲むと LaTeX で書けます)</div>
+        <div className="hint">{p.format === 'short' ? '答え' : '考え方と答え'}{vertical ? '(入力は横書きです)' : '(数式は $…$ で囲むと LaTeX で書けます)'}</div>
         {p.format === 'short' ? (
           <input data-testid="take-short" style={{ width: '100%' }} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} />
         ) : (
@@ -54,6 +54,7 @@ function AnswerInput({ p, value, onChange, disabled }: { p: Problem; value: stri
 /** テストを解く画面(アプリ内で、制限時間つき)。 */
 export function Take({ projectId, subjectId, testId }: { projectId: string; subjectId: string; testId: string }) {
   const nav = useNav();
+  const vertical = useVertical(projectId, subjectId);
   const [view, setView] = useState<TakeView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState(false);
@@ -183,6 +184,7 @@ export function Take({ projectId, subjectId, testId }: { projectId: string; subj
         <span data-testid="take-progress">
           回答済み {answered} / {test.problems.length}
         </span>
+        {vertical && <TateFontControl />}
         <span className="spacer" />
         {confirming ? (
           <>
@@ -219,9 +221,24 @@ export function Take({ projectId, subjectId, testId }: { projectId: string; subj
               {p.points} 点・{PROBLEM_FORMAT_LABEL[p.format]}・{DIFFICULTY_LABEL[p.difficulty]}
             </span>
           </div>
-          <Md text={p.body} testId="take-body" />
-          <SvgFigure svg={p.figureSvg} />
-          <AnswerInput p={p} value={answers[p.id] ?? ''} disabled={timeUp || submitting} onChange={(v) => setAnswers((a) => ({ ...a, [p.id]: v }))} />
+          {vertical ? (
+            // 国語: 右に縦書きの本文と設問、左に解答欄(本文を読みながら答えられる)
+            <div className="take-tate" data-testid="take-tate">
+              <div className="take-tate-body">
+                <Md text={p.body} testId="take-body" vertical height="min(70vh, 560px)" />
+                <SvgFigure svg={p.figureSvg} />
+              </div>
+              <div className="take-tate-answer">
+                <AnswerInput p={p} vertical value={answers[p.id] ?? ''} disabled={timeUp || submitting} onChange={(v) => setAnswers((a) => ({ ...a, [p.id]: v }))} />
+              </div>
+            </div>
+          ) : (
+            <>
+              <Md text={p.body} testId="take-body" />
+              <SvgFigure svg={p.figureSvg} />
+              <AnswerInput p={p} value={answers[p.id] ?? ''} disabled={timeUp || submitting} onChange={(v) => setAnswers((a) => ({ ...a, [p.id]: v }))} />
+            </>
+          )}
         </section>
       ))}
     </div>

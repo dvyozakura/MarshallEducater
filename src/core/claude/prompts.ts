@@ -86,6 +86,33 @@ export interface BuildPromptArgs {
    * images は読ませる画像(絶対パス)。
    */
   inline?: { input: unknown; images: string[] };
+  /** 国語(縦書き)の科目: 縦書きの記法の説明を足す(src/prompts/_tategaki.md)。 */
+  tategaki?: boolean;
+}
+
+/** プロンプトの種類 → 縦書きの記法の説明のどれを足すか(作る/読み取る/読むだけ)。 */
+export const TATEGAKI_MODE: Partial<Record<PromptKind, 'write' | 'read' | 'understand'>> = {
+  design_test: 'write',
+  generate_problems: 'write',
+  chapter_body: 'write',
+  chapter_revise: 'write',
+  chapter_supplement: 'write',
+  note: 'write',
+  read_pages: 'read',
+  reread_problem: 'read',
+  solve_problems: 'understand',
+  judge_answers: 'understand',
+  grade: 'understand',
+  explain: 'understand',
+  chat: 'understand',
+  chapter_review: 'understand',
+  trend: 'understand',
+};
+
+/** 縦書きの記法の説明(その種類で足すものが無ければ空)。 */
+export function tategakiSection(kind: PromptKind): string {
+  const mode = TATEGAKI_MODE[kind];
+  return mode ? loadPromptSection('_tategaki', mode) : '';
 }
 
 /** 本文(種類ごと)+入出力の約束(共通)+やり直しの指摘、を1つのプロンプトにする。 */
@@ -104,7 +131,8 @@ export function buildPrompt(a: BuildPromptArgs): string {
         outputFile: a.outputFile,
         schema: schemaDescription(a.schema),
       });
-  let text = `${body.trim()}\n\n${common.trim()}\n`;
+  const tategaki = a.tategaki ? tategakiSection(a.kind) : '';
+  let text = `${body.trim()}\n\n${tategaki ? `${tategaki}\n\n` : ''}${common.trim()}\n`;
   if (a.retryError) {
     text += `\n${renderTemplate(loadPromptFile('_retry'), { error: a.retryError }).trim()}\n`;
     if (a.inline) text += '\n(この呼び出しでは、ファイルには書かず、最後の返答として JSON だけを書いてください。)\n';

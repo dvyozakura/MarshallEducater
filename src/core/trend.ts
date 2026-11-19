@@ -10,6 +10,7 @@ import { getProject, getSubject } from './projects';
 import { Files, readData, writeData } from './store';
 import { listTests } from './tests';
 import { getUnits, projectBrief, unitNameMap } from './units';
+import { isTategaki } from './projects';
 
 /** 1問につき、傾向の分析に渡す本文の長さ(暫定)。 */
 const BODY_HEAD_CHARS = 500;
@@ -83,6 +84,7 @@ export async function updateTrend(core: AppCore, projectId: string, subjectId: s
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'trend',
+    tategaki: isTategaki(core, projectId, subjectId),
     vars: { subjectName: subject.name, university: project.university, faculty: project.faculty },
     input: {
       subject: subject.name,

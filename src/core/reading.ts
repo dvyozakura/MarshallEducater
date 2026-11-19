@@ -20,6 +20,7 @@ import { getProject, getSubject } from './projects';
 import { listPages, setSourceStatus, sourcePaths } from './sources';
 import { Files, readData, writeData } from './store';
 import { getUnits } from './units';
+import { isTategaki } from './projects';
 
 /** 1回の呼び出しで読ませるページ数(暫定)。多い資料はこの数ずつに分けて読む。 */
 export const READ_CHUNK_PAGES = 4;
@@ -144,6 +145,7 @@ export async function readSource(core: AppCore, projectId: string, subjectId: st
     const r = await callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'read_pages',
+      tategaki: isTategaki(core, projectId, subjectId),
       vars: {
         modeLabel: mode === 'answers' ? '答案' : '問題',
         subjectName: subject.name,

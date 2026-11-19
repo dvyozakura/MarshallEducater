@@ -5,6 +5,8 @@ import { api, errorMessage } from '../api';
 import { Empty, ErrorBox, Md } from '../components';
 import { JobRow, useJobRunner } from '../jobs';
 import { useNav } from '../nav';
+import { NotationButtons, verticalPreviewText } from '../notationButtons';
+import { notationErrors } from '../../shared/notation';
 
 interface Ids {
   projectId: string;
@@ -256,6 +258,7 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
   if (!view) return <div className="page"><ErrorBox message={error} />{!error && '読み込み中…'}</div>;
 
   const src = view.source;
+  const vertical = view.writingMode === 'vertical';
   const confirmedCount = problems.filter((p) => p.confirmed).length;
   const rate = view.stats.originalChars > 0 ? Math.round((view.stats.changedChars / view.stats.originalChars) * 1000) / 10 : 0;
   const startRead = () => void reader.start(() => api.startReadSource(projectId, subjectId, sourceId));
@@ -427,10 +430,18 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
                             </label>
                           )}
                         </div>
-                        <div className="split">
+                        <div className={vertical ? 'split-v' : 'split'}>
                           <div>
-                            <div className="hint">{answers ? '答案の内容' : '本文'}(Markdown。数式は $…$、$$…$$)</div>
+                            <div className="hint">
+                              {answers ? '答案の内容' : '本文'}(Markdown。数式は $…$、$$…$${vertical ? '。縦書きの記法は「記法」ボタンか一覧を参照' : ''})
+                            </div>
+                            {vertical && <NotationButtons target={bodyRef} onChange={(body) => setDraft({ ...draft, body })} />}
                             <textarea data-testid="c-body" ref={bodyRef} rows={9} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+                            {notationErrors(draft.body).map((m) => (
+                              <div key={m} className="warn small" data-testid="c-notation-error">
+                                ⚠ {m}
+                              </div>
+                            ))}
                             {!answers && (
                               <>
                                 <div className="hint">選択肢(1行に1つ)</div>
@@ -439,10 +450,14 @@ export function Correction({ projectId, subjectId, sourceId }: Ids) {
                             )}
                           </div>
                           <div>
-                            <div className="hint">表示の確認(プレビュー)</div>
+                            <div className="hint">表示の確認(プレビュー{vertical ? '・縦書き。左の元のページと見比べてください' : ''})</div>
                             <div className="preview" data-testid="c-preview">
-                              <Md text={draft.body} />
-                              {draft.choices.trim() && (
+                              {vertical ? (
+                                <Md text={verticalPreviewText(draft.body, draft.choices)} vertical testId="c-preview-tate" height="420px" />
+                              ) : (
+                                <Md text={draft.body} />
+                              )}
+                              {!vertical && draft.choices.trim() && (
                                 <ol className="choices">
                                   {draft.choices
                                     .split('\n')
