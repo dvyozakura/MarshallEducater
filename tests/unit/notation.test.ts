@@ -110,7 +110,8 @@ describe('壊れた記法', () => {
     expect(notationErrors('{{傍線:ア|閉じていない').length).toBe(1);
     expect(notationErrors('{{太字|知らない}}')[0]).toContain('知らない記法');
     expect(notationErrors(':::漢文 訓読文\n学')[0]).toContain('閉じていない');
-    expect(notationErrors('学[_ブ]')[0]).toContain('訓読文');
+    // 訓読文の外の送り仮名・返り点は、解説での引用として許す(本物の Claude が解説で「登[^レ]山」と書いた)
+    expect(notationErrors('「登[^レ]山」は山を先に読む')).toEqual([]);
     expect(notationErrors('数式 $\\{\\{x\\}\\}$ は対象外')).toEqual([]);
   });
   it('protectNotation は目印と部品の数が合う', () => {

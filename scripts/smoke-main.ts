@@ -18,6 +18,7 @@ import { ENGINE_LABEL, type EngineId } from '../src/shared/engines';
 import { engineVersion } from '../src/core/engine_check';
 import { ClaudeError } from '../src/core/claude/task';
 import { leafUnits } from '../src/shared/subjects';
+import { notationErrors } from '../src/shared/notation';
 
 const MAX_CALLS = 5;
 const fake = process.argv.includes('--fake');
@@ -26,6 +27,8 @@ const textbookMode = process.argv.includes('--textbook');
 /** --engines: ChatGPT・Gemini の最小確認(入っているエンジンごとに、問題を1問作る → Claude で検算 → 採点。1エンジンにつき呼び出し3回まで)。 */
 const enginesMode = process.argv.includes('--engines');
 const ENGINE_MAX_CALLS = 3;
+/** --kokugo: 国語の最小確認(現代文1問・漢文1問を作る → 検算。呼び出し4回まで)。 */
+const kokugoMode = process.argv.includes('--kokugo');
 const repoRoot = process.cwd();
 const say = (s = '') => console.log(s);
 const DONE = Symbol('done');
@@ -128,6 +131,61 @@ async function enginesCheck(core: AppCore, projectId: string, sid: string, unitI
   core.updateSettings({ defaultEngine: 'claude', engineRoles: {} });
 }
 
+/**
+ * 国語の最小確認: 現代文1問・漢文1問(どちらも選択式)を作る → 検算。呼び出しは 2+2 = 4 回。
+ * 出てきた記法を調べ(壊れていないか・使っているか)、本文をそのまま出す。画面での確認は tests/e2e/99-view-smoke.spec.ts。
+ */
+async function kokugoCheck(core: AppCore, ctx: JobContext, warnings: string[], onProject: (dir: string) => void): Promise<string> {
+  const project = createProject(core, {
+    name: 'スモーク大学 文学部',
+    university: 'スモーク大学',
+    faculty: '文学部',
+    examDate: addDays(todayString(), 100),
+    examType: 'kokkoritsu',
+    targetLevel: 'solid',
+    dailyMinutes: 60,
+    subjectNames: ['現代文', '漢文'],
+  });
+  onProject(core.projectDir(project.id));
+  say(`1. プロジェクトを作成: ${project.name}(科目 ${project.subjects.map((s) => `${s.name}=${s.writingMode}`).join('、')})`);
+  let n = 2;
+  for (const s of project.subjects) {
+    const units = leafUnits(getUnits(core, project.id, s.id).tree);
+    const unit = s.name === '漢文' ? (units.find((u) => u.name.includes('返り点')) ?? units[0]) : (units.find((u) => u.name.includes('傍線部')) ?? units[0]);
+    say(`${n++}. ${s.name}: 「${unit.fullName}」の選択式を1問作り、検算します`);
+    const test = await createTest(
+      core,
+      project.id,
+      s.id,
+      {
+        kind: 'practice',
+        title: `国語の確認(${s.name})`,
+        timeLimitMin: 10,
+        instructions: '',
+        purpose: s.name === '漢文' ? '動作確認: 短い訓読文(返り点・送り仮名つき)を読ませる問題' : '動作確認: 短い自作の文章に傍線部を付けて問う問題',
+        requests: [{ unitId: unit.id, difficulty: 'easy', format: 'choice', origin: 'practice' }],
+      },
+      ctx,
+    );
+    const v = getVerify(core, project.id, s.id, test.id);
+    const key = getAnswerKey(core, project.id, s.id, test.id);
+    say(`   検算: 採用 ${v?.counts.adopted}・作り直し ${v?.counts.regenerated}・破棄 ${v?.counts.discarded}`);
+    for (const p of test.problems) {
+      say(indent(p.body));
+      p.choices.forEach((c, i) => say(`     (${i + 1}) ${c}`));
+      say(`   正解: ${key.items.find((k) => k.problemId === p.id)?.answer}`);
+      const errs = [p.body, ...p.choices].flatMap((t) => notationErrors(t));
+      if (errs.length) warnings.push(`${s.name}: 記法の誤り ${errs.join(' / ')}`);
+      const used = ['{{傍線', '{{空欄', '{{傍点', '{{段落', ':::漢文', '[^', '[_', '|'].filter((k) => p.body.includes(k));
+      say(`   使われた記法: ${used.join(' ') || '(なし)'}`);
+      if (s.name === '漢文' && !p.body.includes(':::漢文')) warnings.push('漢文の問題に「:::漢文」の区切りがありません。');
+      if (s.name === '現代文' && !/\{\{(傍線|波線|二重傍線|空欄)/.test(p.body)) warnings.push('現代文の問題に、傍線・空欄の記法がありません。');
+    }
+    if (test.problems.length === 0) warnings.push(`${s.name}: 問題が検算で落ちて残りませんでした。`);
+  }
+  return core.projectDir(project.id);
+}
+
 async function main(): Promise<number> {
   const base = resolve(repoRoot, 'tests', 'tmp');
   mkdirSync(base, { recursive: true });
@@ -142,8 +200,8 @@ async function main(): Promise<number> {
     delete process.env.ME_FAKE_CLAUDE;
   }
   const core = new AppCore({ userDataDir: join(dir, 'userData'), defaultDataDir: join(dir, 'data'), envDataDir: join(dir, 'data'), extraEnv });
-  core.updateSettings({ dailyLimit: MAX_CALLS, timeoutMin: 10, concurrency: 1, model: process.env.ME_SMOKE_MODEL ?? 'sonnet' });
-  say(`== smoke_real(${fake ? '偽 Claude' : '本物の Claude'}、呼び出しは ${MAX_CALLS} 回まで、モデル ${core.getSettings().model})==`);
+  core.updateSettings({ dailyLimit: kokugoMode ? 4 : MAX_CALLS, timeoutMin: 10, concurrency: 1, model: process.env.ME_SMOKE_MODEL ?? 'sonnet' });
+  say(`== smoke_real(${fake ? '偽 Claude' : '本物の Claude'}、呼び出しは ${kokugoMode ? 4 : MAX_CALLS} 回まで、モデル ${core.getSettings().model})==`);
   say(`作業フォルダ: ${dir}`);
 
   const warnings: string[] = [];
@@ -152,6 +210,10 @@ async function main(): Promise<number> {
   let failure: string | null = null;
   let projectDir = '';
   try {
+    if (kokugoMode) {
+      projectDir = await kokugoCheck(core, ctx, warnings, (d) => (projectDir = d));
+      throw DONE;
+    }
     // 1. 小さなプロジェクト
     const project = createProject(core, {
       name: 'スモーク大学 理学部',
@@ -251,7 +313,7 @@ async function main(): Promise<number> {
     }
   }
   if (enginesMode) say(`ほかのエンジンの呼び出し: codex ${core.limiterFor('codex').used()}、gemini ${core.limiterFor('gemini').used()}(各 ${ENGINE_MAX_CALLS} 回まで)`);
-  say(`呼び出し回数: ${core.limiter.used()} / ${MAX_CALLS}、全体の所要時間: ${((Date.now() - started) / 1000).toFixed(0)} 秒`);
+  say(`呼び出し回数: ${core.limiter.used()} / ${kokugoMode ? 4 : MAX_CALLS}、全体の所要時間: ${((Date.now() - started) / 1000).toFixed(0)} 秒`);
   for (const w of warnings) say(`注意: ${w}`);
   if (failure) {
     say(`smoke_real: 失敗 — ${failure}`);

@@ -176,7 +176,7 @@ function generateProblems({ input, mode, prompt }) {
         return { ...base, body: `${head} $${a} + ${b}$ の値として正しいものを選べ。`, choices: [`$${sum - 1}$`, `$${sum}$`, `$${sum + 1}$`, `$${sum + 10}$`], answer: '2', rubric: '', solution };
       }
       if (r.format === 'essay') {
-        return { ...base, body: `${head} $${a} + ${b}$ を計算し、考え方も説明せよ。`, answer: `一の位と十の位に分けて足す。答えは ${sum}。`, rubric: '考え方の説明 10点、答え 10点', solution };
+        return { ...base, body: `${head} $${a} + ${b}$ を計算し、考え方も説明せよ。${kokugo ? '(四十字以内)' : ''}`, answer: `一の位と十の位に分けて足す。答えは ${sum}。`, rubric: '考え方の説明 10点、答え 10点', solution };
       }
       return { ...base, body: `${head} $${a} + ${b}$ を計算せよ。`, answer: `$${sum}$`, rubric: '数値が合っていれば正解', solution };
     }),

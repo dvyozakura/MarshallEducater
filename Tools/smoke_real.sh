@@ -8,6 +8,9 @@
 #         ./Tools/smoke_real.sh --engines         … ChatGPT(Codex CLI)・Gemini(Gemini CLI)の最小確認。入っているエンジンごとに
 #                                               問題を1問作る → Claude で検算 → 採点(1エンジンにつき呼び出し3回まで。未導入・未ログインは飛ばす)
 #         ./Tools/smoke_real.sh --engines --fake  … その偽エンジン版
+#         ./Tools/smoke_real.sh --kokugo          … 国語(縦書き)の最小確認: 現代文1問・漢文1問を作る → 検算(呼び出し4回まで)。
+#                                               画面で見るには: ME_SMOKE_DIR=<作業フォルダ> ./Tools/run_e2e.sh tests/e2e/99-view-smoke.spec.ts
+#         ./Tools/smoke_real.sh --kokugo --fake   … その偽 Claude 版
 # データは tests/tmp/smoke-*/ に作る(本番のデータには触れない)。結果は Logs/smoke_real.log にも残す。
 cd "$(dirname "$0")/.." || exit 1
 mkdir -p Logs

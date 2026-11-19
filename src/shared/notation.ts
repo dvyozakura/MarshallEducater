@@ -184,9 +184,7 @@ export function notationErrors(text: string): string[] {
   }
   const opens = (rest.match(/(^|\n):::漢文/g) ?? []).length;
   if (opens > 0) errors.push('「:::漢文 種類」の区切りが閉じていないか、種類(白文・訓読文・書き下し文)が違います');
-  if (/\[_[^\]\n]*\]|\[\^[^\]\n]*\]/.test(rest.replace(/:::漢文[\s\S]*?:::/g, ''))) {
-    errors.push('送り仮名 [_…]・返り点 [^…] は「:::漢文 訓読文」の中だけで使えます');
-  }
+  // 訓読文の外の [_…] [^…] は誤りにしない(解説の中で「登[^レ]山」のように引用することがあり、表示は元の文字のまま)
   return [...new Set(errors)];
 }
 
