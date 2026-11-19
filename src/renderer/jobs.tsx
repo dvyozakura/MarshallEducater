@@ -147,9 +147,9 @@ export function JobRow({ job, onRetry }: { job: JobInfo; onRetry?: () => void })
         )}
       </div>
       {job.status === 'failed' && job.error && (
-        <div className="failure" data-testid="job-failure" data-failure={job.error.kind}>
-          <div className="failure-title">{failureTitle(job.error.kind)}</div>
-          <div className="failure-guide">{failureGuide(job.error.kind)}</div>
+        <div className="failure" data-testid="job-failure" data-failure={job.error.kind} data-engine={job.error.engine ?? 'claude'}>
+          <div className="failure-title">{failureTitle(job.error.kind, job.error.engine)}</div>
+          <div className="failure-guide">{failureGuide(job.error.kind, job.error.engine)}</div>
           {job.error.message && <pre className="failure-detail">{job.error.message}</pre>}
         </div>
       )}

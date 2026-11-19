@@ -14,12 +14,18 @@ import { getChapter, getChapterReview, getTextbookView, textbookPaths } from '..
 import { buildChapter } from '../src/core/textbook_build';
 import { getUnits } from '../src/core/units';
 import { addDays, todayString } from '../src/shared/dates';
+import { ENGINE_LABEL, type EngineId } from '../src/shared/engines';
+import { engineVersion } from '../src/core/engine_check';
+import { ClaudeError } from '../src/core/claude/task';
 import { leafUnits } from '../src/shared/subjects';
 
 const MAX_CALLS = 5;
 const fake = process.argv.includes('--fake');
 /** --textbook: 教材の最小確認(1つの章を作る → 点検 → その章に1回質問)。 */
 const textbookMode = process.argv.includes('--textbook');
+/** --engines: ChatGPT・Gemini の最小確認(入っているエンジンごとに、問題を1問作る → Claude で検算 → 採点。1エンジンにつき呼び出し3回まで)。 */
+const enginesMode = process.argv.includes('--engines');
+const ENGINE_MAX_CALLS = 3;
 const repoRoot = process.cwd();
 const say = (s = '') => console.log(s);
 const DONE = Symbol('done');
@@ -74,6 +80,54 @@ async function textbookCheck(core: AppCore, projectId: string, sid: string, ctx:
   if (answer.trim().length < 50) warnings.push('質問への答えが短すぎます。');
 }
 
+/**
+ * ほかの教員エンジンの最小確認。入っていない・ログインしていないエンジンは飛ばして、その旨を出す。
+ * 1エンジンあたり: 問題を1問作る(そのエンジン)→ 検算(Claude。別エンジン)→ 採点(そのエンジン)。選択式なので照らし合わせの呼び出しは無い。
+ */
+async function enginesCheck(core: AppCore, projectId: string, sid: string, unitId: string, ctx: JobContext, warnings: string[]): Promise<void> {
+  let n = 2;
+  for (const engine of ['codex', 'gemini'] as const satisfies readonly EngineId[]) {
+    say(`${n++}. ${ENGINE_LABEL[engine]}`);
+    const version = engineVersion(core, engine);
+    if (version === null) {
+      say('   未導入(コマンドが見つかりません)。飛ばします。');
+      continue;
+    }
+    say(`   版: ${version}`);
+    const s = core.getSettings();
+    core.updateSettings({ defaultEngine: engine, engineRoles: { verify: 'claude' }, engines: { ...s.engines, [engine]: { ...s.engines[engine], dailyLimit: ENGINE_MAX_CALLS } } });
+    const before = core.limiterFor(engine).used();
+    try {
+      const test = await createTest(
+        core,
+        projectId,
+        sid,
+        { kind: 'practice', title: `エンジン確認(${engine})`, timeLimitMin: 5, instructions: '', purpose: '動作確認のための小テスト(短く、計算の軽い問題)', requests: [{ unitId, difficulty: 'easy', format: 'choice', origin: 'practice' }] },
+        ctx,
+      );
+      const key = getAnswerKey(core, projectId, sid, test.id);
+      const v = getVerify(core, projectId, sid, test.id);
+      const p = test.problems[0];
+      say(`   作った問題(${test.madeBy?.engine ?? '?'}・検算 ${v?.verifiedBy?.engine ?? '?'}: 採用 ${v?.counts.adopted}・作り直し ${v?.counts.regenerated}・破棄 ${v?.counts.discarded})`);
+      say(indent(p.body));
+      p.choices.forEach((c, i) => say(`     (${i + 1}) ${c}`));
+      const answer = key.items[0]?.answer ?? '';
+      say(`   正解: ${answer}`);
+      submitAnswers(core, projectId, sid, test.id, { answers: { [p.id]: answer }, elapsedSec: 60 });
+      const g = await gradeTest(core, projectId, sid, test.id, ctx);
+      say(`   採点(${g.madeBy?.engine ?? '?'}): ${g.items[0].score} / ${g.items[0].max} 点 根拠: ${g.items[0].rationale}`);
+      if (g.items[0].score < g.items[0].max) warnings.push(`${engine}: 正解をそのまま書いた答案が満点になりませんでした。`);
+      if (test.madeBy?.engine !== engine || g.madeBy?.engine !== engine) warnings.push(`${engine}: 作成・採点のエンジンの記録が想定と違います。`);
+    } catch (e) {
+      const kind = e instanceof ClaudeError ? e.kind : 'other';
+      if (kind === 'not_logged_in' || kind === 'not_found' || kind === 'usage_limit') say(`   ${kind === 'not_logged_in' ? '未ログイン' : kind === 'usage_limit' ? '使用量の上限' : '起動できません'}のため飛ばします: ${(e as Error).message.slice(0, 300)}`);
+      else warnings.push(`${engine}: 失敗 — ${(e as Error).message.slice(0, 300)}`);
+    }
+    say(`   呼び出し: ${engine} ${core.limiterFor(engine).used() - before} 回`);
+  }
+  core.updateSettings({ defaultEngine: 'claude', engineRoles: {} });
+}
+
 async function main(): Promise<number> {
   const base = resolve(repoRoot, 'tests', 'tmp');
   mkdirSync(base, { recursive: true });
@@ -116,6 +170,10 @@ async function main(): Promise<number> {
 
     if (textbookMode) {
       await textbookCheck(core, project.id, sid, ctx, warnings);
+      throw DONE;
+    }
+    if (enginesMode) {
+      await enginesCheck(core, project.id, sid, units[0].id, ctx, warnings);
       throw DONE;
     }
 
@@ -186,12 +244,13 @@ async function main(): Promise<number> {
     });
     for (const r of records.filter((x) => x !== null).sort((a, b) => String(a.startedAt).localeCompare(String(b.startedAt)))) {
       try {
-        say(`- ${r.kind}(${r.attempt} 回目): ${r.outcome}、${(r.durationMs / 1000).toFixed(1)} 秒${r.validationError ? `\n    出力の問題: ${String(r.validationError).slice(0, 300)}` : ''}${r.message ? `\n    失敗: ${String(r.message).slice(0, 300)}` : ''}`);
+        say(`- ${r.engine ?? 'claude'} ${r.kind}(${r.attempt} 回目): ${r.outcome}、${(r.durationMs / 1000).toFixed(1)} 秒${r.validationError ? `\n    出力の問題: ${String(r.validationError).slice(0, 300)}` : ''}${r.message ? `\n    失敗: ${String(r.message).slice(0, 300)}` : ''}`);
       } catch {
         say('- (読めない記録)');
       }
     }
   }
+  if (enginesMode) say(`ほかのエンジンの呼び出し: codex ${core.limiterFor('codex').used()}、gemini ${core.limiterFor('gemini').used()}(各 ${ENGINE_MAX_CALLS} 回まで)`);
   say(`呼び出し回数: ${core.limiter.used()} / ${MAX_CALLS}、全体の所要時間: ${((Date.now() - started) / 1000).toFixed(0)} 秒`);
   for (const w of warnings) say(`注意: ${w}`);
   if (failure) {

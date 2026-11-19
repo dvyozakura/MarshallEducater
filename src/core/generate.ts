@@ -1,5 +1,6 @@
 // 共通の「問題を作る」仕組みと、検算(別の呼び出しで、解答を見せずに解かせて照らし合わせる)。
 import { existsSync } from 'node:fs';
+import type { MadeBy } from '../shared/engines';
 import { isUsableSvg } from '../shared/mdmath';
 import {
   GenerateOutputSchema,
@@ -65,6 +66,9 @@ export interface GenerateResult {
   problems: Array<VerifiedProblem & { slot: number }>;
   events: VerifyEvent[];
   counts: Record<VerifyOutcome, number>;
+  /** 問題を作ったエンジンと、検算したエンジン(検算の呼び出しが無かったときは null)。 */
+  madeBy: MadeBy | null;
+  verifiedBy: MadeBy | null;
 }
 
 /** 答えの見た目の違い(空白、全角・半角、$ 記号、文末の句点)をならす。 */
@@ -112,6 +116,8 @@ interface Env {
   ctx: JobContext;
   subjectName: string;
   unitName: (id: string) => string;
+  madeBy?: MadeBy;
+  verifiedBy?: MadeBy;
 }
 
 async function generate(env: Env, requests: Array<ProblemRequest & { avoid?: { body: string; reason: string } | null; noFigure?: boolean }>): Promise<GeneratedProblem[]> {
@@ -147,6 +153,7 @@ async function generate(env: Env, requests: Array<ProblemRequest & { avoid?: { b
     signal: ctx.signal,
     check: (d) => checkGenerated(d.problems, requests),
   });
+  env.madeBy = r.madeBy;
   // 単元・難易度・形式は注文を正とする。選択式でなければ選択肢は持たせない
   return r.data.problems.map((p, i) => ({
     ...p,
@@ -178,6 +185,7 @@ async function verify(env: Env, problems: GeneratedProblem[]): Promise<Verdict[]
       return missing < 0 ? null : `index ${missing + 1} の答えがありません(problems と同じ数だけ answers を書く)。`;
     },
   });
+  env.verifiedBy = solved.madeBy;
 
   const toJudge: Array<{ i: number; solved: string }> = [];
   targets.forEach((x, n) => {
@@ -290,5 +298,5 @@ export async function generateVerified(core: AppCore, args: GenerateArgs, ctx: J
   const counts: Record<VerifyOutcome, number> = { adopted: 0, regenerated: 0, discarded: 0 };
   for (const e of events) counts[e.outcome]++;
   const problems = [...adopted.entries()].sort((a, b) => a[0] - b[0]).map(([slot, problem]) => ({ slot, request: args.requests[slot], unitName: env.unitName(problem.unitId), problem }));
-  return { problems, events, counts };
+  return { problems, events, counts, madeBy: env.madeBy ?? null, verifiedBy: env.verifiedBy ?? null };
 }

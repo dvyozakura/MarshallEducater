@@ -1,11 +1,15 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
+import type { EngineId } from '../../shared/engines';
 import { classifyFailureText, type FailureKind } from '../../shared/failures';
+import { codexArgs, geminiArgs, parseGeminiJson, resolveEngineCommand } from './engines';
 
-/** Claude の呼び出しに使う設定(アプリの設定から作る)。 */
+/** 教員エンジンの呼び出しに使う設定(アプリの設定から作る)。名前は Claude だけだった頃のまま。 */
 export interface ClaudeSettings {
-  /** claude の場所。空なら PATH の `claude`。 */
+  /** どのエンジンか。無ければ Claude Code。 */
+  engine?: EngineId;
+  /** コマンドの場所。空なら PATH から探す(Claude なら `claude`)。 */
   claudePath: string;
   /** モデル(別名か正式名)。空なら指定しない。 */
   model: string;
@@ -21,17 +25,21 @@ export interface RunOptions {
   settings: ClaudeSettings;
   signal?: AbortSignal;
   resumeSessionId?: string;
+  /** 添付する画像(絶対パス。Codex CLI の -i)。 */
+  images?: string[];
+  /** 最後の返答を書かせるファイル(Codex CLI の -o)。 */
+  lastMessageFile?: string;
 }
 
 export interface RunResult {
   ok: boolean;
   failure?: FailureKind;
-  /** 失敗の詳細(claude の出力の先頭など)。 */
+  /** 失敗の詳細(出力の先頭など)。 */
   message?: string;
   exitCode: number | null;
   stdout: string;
   stderr: string;
-  /** 結果 JSON の result(最後の返答文)。 */
+  /** 最後の返答文。 */
   resultText?: string;
   sessionId?: string;
   durationMs: number;
@@ -46,7 +54,11 @@ export function fakeClaudePath(env: NodeJS.ProcessEnv = process.env): string {
   return env.ME_FAKE_CLAUDE_PATH ?? resolve(process.cwd(), 'Tools/fake-claude/fake-claude.mjs');
 }
 
-/** 非対話実行の引数(DECISIONS.md「Claude Code の呼び出し方」)。プロンプトは標準入力で渡す。 */
+export function engineOf(settings: ClaudeSettings): EngineId {
+  return settings.engine ?? 'claude';
+}
+
+/** Claude Code の非対話実行の引数(DECISIONS.md「Claude Code の呼び出し方」)。プロンプトは標準入力で渡す。 */
 export function buildArgs(settings: ClaudeSettings, resumeSessionId?: string): string[] {
   const args = ['-p', '--output-format', 'json', '--permission-mode', 'acceptEdits', '--tools', 'Read,Write,Edit,Glob,Grep'];
   if (settings.model.trim()) args.push('--model', settings.model.trim());
@@ -54,23 +66,37 @@ export function buildArgs(settings: ClaudeSettings, resumeSessionId?: string): s
   return args;
 }
 
-function resolveCommand(opts: RunOptions, env: NodeJS.ProcessEnv): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
-  const args = buildArgs(opts.settings, opts.resumeSessionId);
-  if (isFakeClaude(env)) {
-    // 偽 Claude。「claude が無い」の再現だけは、存在しないコマンドを起動して本物と同じ経路を通す。
-    const control = env.ME_FAKE_CONTROL;
-    if (control && existsSync(control)) {
-      try {
-        if (JSON.parse(readFileSync(control, 'utf8')).notFound) {
-          return { command: 'me-claude-not-installed', args, env };
-        }
-      } catch {
-        /* 制御ファイルが壊れていても偽 Claude 側で扱う */
-      }
-    }
-    return { command: process.execPath, args: [fakeClaudePath(env), ...args], env: { ...env, ELECTRON_RUN_AS_NODE: '1' } };
+/** エンジンごとの引数。 */
+export function engineArgsFor(opts: RunOptions): string[] {
+  const engine = engineOf(opts.settings);
+  if (engine === 'codex') return codexArgs({ cwd: opts.cwd, model: opts.settings.model, images: opts.images ?? [], lastMessageFile: opts.lastMessageFile ?? '' });
+  if (engine === 'gemini') return geminiArgs({ model: opts.settings.model });
+  return buildArgs(opts.settings, opts.resumeSessionId);
+}
+
+function fakeControl(env: NodeJS.ProcessEnv): Record<string, unknown> | null {
+  const control = env.ME_FAKE_CONTROL;
+  if (!control || !existsSync(control)) return null;
+  try {
+    return JSON.parse(readFileSync(control, 'utf8'));
+  } catch {
+    return null; // 制御ファイルが壊れていても偽 Claude 側で扱う
   }
-  return { command: opts.settings.claudePath.trim() || 'claude', args, env };
+}
+
+function resolveCommand(opts: RunOptions, env: NodeJS.ProcessEnv): { command: string; args: string[]; env: NodeJS.ProcessEnv } {
+  const engine = engineOf(opts.settings);
+  const args = engineArgsFor(opts);
+  if (isFakeClaude(env)) {
+    // 偽エンジン。「入っていない」の再現だけは、存在しないコマンドを起動して本物と同じ経路を通す。
+    const c = fakeControl(env);
+    const notFound = engine === 'claude' ? !!c?.notFound : Array.isArray(c?.notFoundEngines) && (c.notFoundEngines as string[]).includes(engine);
+    if (notFound) return { command: `me-${engine}-not-installed`, args, env };
+    return { command: process.execPath, args: [fakeClaudePath(env), ...args], env: { ...env, ELECTRON_RUN_AS_NODE: '1', ME_FAKE_ENGINE: engine } };
+  }
+  if (engine === 'claude') return { command: opts.settings.claudePath.trim() || 'claude', args, env };
+  const r = resolveEngineCommand(engine, opts.settings.claudePath, env);
+  return { command: r.command, args: [...r.prefix, ...args], env: r.env };
 }
 
 function killTree(child: ChildProcess): void {
@@ -100,9 +126,42 @@ function parseResultJson(stdout: string): { result?: string; session_id?: string
   return null;
 }
 
-/** claude(または偽 Claude)を1回だけ非対話で呼ぶ。例外は投げず、結果を返す。 */
+interface Parsed {
+  ok: boolean;
+  resultText?: string;
+  sessionId?: string;
+  /** 失敗のときに見分けに使う文。 */
+  detail: string;
+}
+
+/** 終わったあとの出力を、エンジンごとに読む。 */
+function parseOutput(engine: EngineId, code: number | null, stdout: string, stderr: string, lastMessageFile?: string): Parsed {
+  if (engine === 'codex') {
+    let last: string | undefined;
+    if (lastMessageFile && existsSync(lastMessageFile)) {
+      last = readFileSync(lastMessageFile, 'utf8');
+      rmSync(lastMessageFile, { force: true });
+    }
+    const resultText = last ?? (stdout.trim() || undefined);
+    return { ok: code === 0, resultText, detail: [stderr, stdout].join('\n').trim() };
+  }
+  if (engine === 'gemini') {
+    const g = parseGeminiJson(stdout);
+    const resultText = g?.response;
+    // 終了コード 41 は認証の失敗(公式の troubleshooting)
+    const auth = code === 41 ? 'gemini: authentication failed (exit 41)' : '';
+    return { ok: code === 0 && !g?.error, resultText, detail: [auth, g?.error ?? '', stderr, g ? '' : stdout].join('\n').trim() };
+  }
+  const parsed = parseResultJson(stdout);
+  const resultText = typeof parsed?.result === 'string' ? parsed.result : undefined;
+  const sessionId = typeof parsed?.session_id === 'string' ? parsed.session_id : undefined;
+  return { ok: code === 0 && parsed?.is_error !== true, resultText, sessionId, detail: [resultText ?? '', stderr, parsed ? '' : stdout].join('\n').trim() };
+}
+
+/** エンジン(または偽エンジン)を1回だけ非対話で呼ぶ。例外は投げず、結果を返す。 */
 export function runClaude(opts: RunOptions): Promise<RunResult> {
   const started = Date.now();
+  const engine = engineOf(opts.settings);
   const env: NodeJS.ProcessEnv = { ...process.env, ...(opts.settings.extraEnv ?? {}) };
   const { command, args, env: childEnv } = resolveCommand(opts, env);
   const commandText = `${command} ${args.join(' ')}`;
@@ -169,22 +228,22 @@ export function runClaude(opts: RunOptions): Promise<RunResult> {
         finish({ ok: false, failure: 'canceled', message: '取り消しました', exitCode: code });
         return;
       }
-      const parsed = parseResultJson(stdout);
-      const resultText = typeof parsed?.result === 'string' ? parsed.result : undefined;
-      const sessionId = typeof parsed?.session_id === 'string' ? parsed.session_id : undefined;
-      if (code === 0 && parsed?.is_error !== true) {
-        finish({ ok: true, exitCode: code, resultText, sessionId });
+      const p = parseOutput(engine, code, stdout, stderr, opts.lastMessageFile);
+      if (p.ok) {
+        finish({ ok: true, exitCode: code, resultText: p.resultText, sessionId: p.sessionId });
         return;
       }
-      const detail = [resultText ?? '', stderr, parsed ? '' : stdout].join('\n').trim();
       finish({
         ok: false,
-        failure: classifyFailureText(detail),
-        message: detail.slice(0, 500) || `終了コード ${code}`,
+        failure: classifyFailureText(p.detail, engine),
+        message: p.detail.slice(0, 500) || `終了コード ${code}`,
         exitCode: code,
-        resultText,
-        sessionId,
+        resultText: p.resultText,
+        sessionId: p.sessionId,
       });
     });
   });
 }
+
+/** 名前を分かりやすくした別名。 */
+export const runEngine = runClaude;

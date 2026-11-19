@@ -1,3 +1,4 @@
+import type { MadeBy } from '../shared/engines';
 import { existsSync } from 'node:fs';
 import {
   FORMAT_VERSION,
@@ -134,6 +135,7 @@ export async function readSource(core: AppCore, projectId: string, subjectId: st
 
   const chunks = chunkPages(pages);
   const results: ReadProblem[][] = [];
+  let madeBy: MadeBy | null = null;
   for (let i = 0; i < chunks.length; i++) {
     const chunk = chunks[i];
     ctx.progress(chunks.length > 1 ? `ページ ${chunk[0]}〜${chunk[chunk.length - 1]} を読んでいます(${i + 1}/${chunks.length})` : 'ページを読んでいます');
@@ -171,13 +173,14 @@ export async function readSource(core: AppCore, projectId: string, subjectId: st
       },
     });
     results.push(r.data.problems);
+    madeBy = r.madeBy;
   }
 
   const merged = mergeChunks(results);
   // 推定の単元は、一覧にある ID だけを残す
   const unitIds = new Set(units.map((u) => u.id));
   const problems = merged.map((p, i) => toExtractedProblem(core, paths, { ...p, unit: unitIds.has(p.unit) ? p.unit : '' }, problemIdAt(i)));
-  const extracted: Extracted = { version: FORMAT_VERSION, sourceId, problems, readAt: new Date().toISOString(), confirmedAt: null };
+  const extracted: Extracted = { version: FORMAT_VERSION, sourceId, problems, readAt: new Date().toISOString(), confirmedAt: null, madeBy };
   writeData(paths.extractedJson, Files.extracted, extracted);
   // Claude が読んだままの内容を別に残す(補正率の計算と、補正の履歴のもと)
   writeData(paths.extractedOriginalJson, Files.extracted, extracted);

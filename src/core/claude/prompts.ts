@@ -81,20 +81,33 @@ export interface BuildPromptArgs {
   schema: z.ZodType;
   /** やり直しのとき、前回の出力の問題点。 */
   retryError?: string;
+  /**
+   * ファイルを読み書きさせないエンジン(ChatGPT・Gemini)のとき: 入力をプロンプトに埋め込み、返答の JSON を受け取る。
+   * images は読ませる画像(絶対パス)。
+   */
+  inline?: { input: unknown; images: string[] };
 }
 
 /** 本文(種類ごと)+入出力の約束(共通)+やり直しの指摘、を1つのプロンプトにする。 */
 export function buildPrompt(a: BuildPromptArgs): string {
   const body = renderTemplate(loadPromptFile(a.kind), a.vars);
-  const common = renderTemplate(loadPromptFile('_common'), {
-    kind: a.kind,
-    inputFile: a.inputFile ?? 'なし',
-    outputFile: a.outputFile,
-    schema: schemaDescription(a.schema),
-  });
+  const common = a.inline
+    ? renderTemplate(loadPromptFile('_common_inline'), {
+        kind: a.kind,
+        schema: schemaDescription(a.schema),
+        images: a.inline.images.length ? a.inline.images.map((p) => `  - ${p}`).join('\n') : '  - (なし)',
+        input: a.inline.input === undefined || a.inline.input === null ? 'なし' : JSON.stringify(a.inline.input, null, 1),
+      })
+    : renderTemplate(loadPromptFile('_common'), {
+        kind: a.kind,
+        inputFile: a.inputFile ?? 'なし',
+        outputFile: a.outputFile,
+        schema: schemaDescription(a.schema),
+      });
   let text = `${body.trim()}\n\n${common.trim()}\n`;
   if (a.retryError) {
     text += `\n${renderTemplate(loadPromptFile('_retry'), { error: a.retryError }).trim()}\n`;
+    if (a.inline) text += '\n(この呼び出しでは、ファイルには書かず、最後の返答として JSON だけを書いてください。)\n';
   }
   return text;
 }

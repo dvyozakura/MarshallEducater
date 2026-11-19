@@ -1,5 +1,6 @@
 import 'katex/dist/katex.min.css';
 import { useMemo, type ReactNode } from 'react';
+import { madeByLabel, type MadeBy } from '../shared/engines';
 import { renderMarkdown, svgToImgHtml } from '../shared/mdmath';
 
 /** Markdown+数式(KaTeX)の表示。 */
@@ -47,6 +48,17 @@ export function Meter({ value, max = 100, label }: { value: number; max?: number
   return (
     <span className="meter" title={label}>
       <span className={`meter-fill ${tone}`} style={{ width: `${pct}%` }} />
+    </span>
+  );
+}
+
+/** どのエンジン・モデルで作ったかの小さな印。記録が無ければ何も出さない。 */
+export function MadeByTag({ madeBy, what, testId }: { madeBy: MadeBy | null | undefined; what?: string; testId?: string }) {
+  if (!madeBy) return null;
+  return (
+    <span className="madeby" data-testid={testId ?? 'madeby'} data-engine={madeBy.engine} title="作ったエンジン・モデル">
+      {what ? `${what}: ` : ''}
+      {madeByLabel(madeBy)}
     </span>
   );
 }

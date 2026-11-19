@@ -1,4 +1,5 @@
 // 体系的な教材: 章を作る(本文 → 例題・確認問題の作成と検算 → 点検 → 指摘があれば1回修正 → 保存)、まとめて作る。
+import type { MadeBy } from '../shared/engines';
 import { copyFileSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { todayString } from '../shared/dates';
@@ -124,6 +125,8 @@ export interface ReviewOutcome {
   issues: ChapterIssue[];
   comment: string;
   revised: boolean;
+  /** 点検したエンジン。 */
+  reviewedBy: MadeBy;
 }
 
 const usableFigures = (figures: ChapterFigure[]): ChapterFigure[] => figures.filter((f) => isUsableSvg(f.svg));
@@ -147,7 +150,7 @@ export async function reviewAndRevise(core: AppCore, t: ReviewTarget, ctx: JobCo
   });
   // 点検の対象でない部分への指摘は捨てる
   const issues = review.data.issues.filter((i) => names.includes(i.section));
-  if (issues.length === 0) return { sections: t.sections, figures: t.figures, issues, comment: review.data.comment, revised: false };
+  if (issues.length === 0) return { sections: t.sections, figures: t.figures, issues, comment: review.data.comment, revised: false, reviewedBy: review.madeBy };
 
   ctx.progress(`点検で ${issues.length} 件の指摘がありました。直しています`);
   const flagged = [...new Set(issues.map((i) => i.section))];
@@ -170,7 +173,7 @@ export async function reviewAndRevise(core: AppCore, t: ReviewTarget, ctx: JobCo
     if (text && text.trim()) sections[s] = text.trim();
   }
   const figures = revise.data.figures.length ? usableFigures(revise.data.figures) : t.figures;
-  return { sections, figures, issues, comment: review.data.comment, revised: true };
+  return { sections, figures, issues, comment: review.data.comment, revised: true, reviewedBy: review.madeBy };
 }
 
 /** 点検の結果を review/<単元ID>.json に足す。 */
@@ -329,7 +332,7 @@ export async function buildChapter(
             chapterUnitId: unitId,
           },
           // 検算の記録は、確認問題の分だけをテストに残す(例題の分は、点検結果の記録に入れる)
-          { problems: quizProblems, events: gen.events.filter((e) => e.slot >= nEx) },
+          { problems: quizProblems, events: gen.events.filter((e) => e.slot >= nEx), madeBy: gen.madeBy, verifiedBy: gen.verifiedBy },
         )
       : null;
   const at = new Date().toISOString();
@@ -356,12 +359,13 @@ export async function buildChapter(
       quizTestId: quizTest?.id ?? null,
       // 質問から足した補足は、作り直しても引き継ぐ
       supplements: previous?.supplements ?? [],
+      madeBy: body.madeBy,
     },
     no,
   );
   const exampleCounts: Record<VerifyOutcome, number> = { adopted: 0, regenerated: 0, discarded: 0 };
   for (const e of gen.events) if (e.slot < nEx) exampleCounts[e.outcome]++;
-  appendReviewRecord(core, projectId, subjectId, unitId, { at, chapterVersion, target: 'chapter', issues: reviewed.issues, comment: reviewed.comment, revised: reviewed.revised, verify: exampleCounts });
+  appendReviewRecord(core, projectId, subjectId, unitId, { at, chapterVersion, target: 'chapter', issues: reviewed.issues, comment: reviewed.comment, revised: reviewed.revised, verify: exampleCounts, madeBy: body.madeBy, reviewedBy: reviewed.reviewedBy });
   updateTocChapter(core, projectId, subjectId, unitId, {
     chapterVersion,
     builtAt: at,
@@ -456,7 +460,7 @@ export async function addSupplement(core: AppCore, projectId: string, subjectId:
     { ...current, chapterVersion, updatedAt: at, supplements: [...current.supplements, { at, chatId, title: sup.data.title.trim(), markdown: reviewed.sections.supplement ?? sup.data.markdown.trim() }] },
     no,
   );
-  appendReviewRecord(core, projectId, subjectId, unitId, { at, chapterVersion, target: 'supplement', issues: reviewed.issues, comment: reviewed.comment, revised: reviewed.revised, verify: null });
+  appendReviewRecord(core, projectId, subjectId, unitId, { at, chapterVersion, target: 'supplement', issues: reviewed.issues, comment: reviewed.comment, revised: reviewed.revised, verify: null, madeBy: sup.madeBy, reviewedBy: reviewed.reviewedBy });
   updateTocChapter(core, projectId, subjectId, unitId, { chapterVersion });
   return { unitId, chapterVersion, title: sup.data.title.trim(), issues: reviewed.issues.length, revised: reviewed.revised };
 }

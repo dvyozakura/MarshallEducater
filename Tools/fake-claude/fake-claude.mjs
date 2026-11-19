@@ -86,7 +86,77 @@ function finish({ result, isError = false, code = 0, sessionId }) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ───── 偽 ChatGPT(Codex CLI)・偽 Gemini(Gemini CLI) ─────
+// 環境変数 ME_FAKE_ENGINE=codex|gemini のとき。入力はプロンプトに埋め込まれ(<<<ME_INPUT_JSON ... ME_INPUT_JSON>>>)、
+// 出力は返答として返す(Codex は -o のファイルにも書く。Gemini は --output-format json の response)。
+// 制御ファイルの engineModes: { "codex": "not_logged_in" } で、エンジンごとにモードを上書きできる。
+function inlineInput(prompt) {
+  const m = prompt.match(/<<<ME_INPUT_JSON\r?\n([\s\S]*?)\r?\nME_INPUT_JSON>>>/);
+  if (!m || m[1].trim() === 'なし') return null;
+  return JSON.parse(m[1]);
+}
+
+function engineFinish(engine, { reply, code = 0, stderr = '', geminiError = null }) {
+  if (engine === 'codex') {
+    const oi = argv.indexOf('-o');
+    if (code === 0 && oi >= 0 && argv[oi + 1]) writeFileSync(argv[oi + 1], reply, 'utf8');
+    if (stderr) process.stderr.write(stderr + '\n');
+    process.stdout.write(code === 0 ? reply + '\n' : '', () => process.exit(code));
+    return;
+  }
+  // gemini
+  if (stderr) process.stderr.write(stderr + '\n');
+  const out = geminiError ? { error: geminiError } : { response: reply, stats: { models: {} } };
+  process.stdout.write(code === 41 ? '' : JSON.stringify(out) + '\n', () => process.exit(code));
+}
+
+async function mainEngine(engine) {
+  if (argv.includes('--version')) {
+    console.log(`0.0.0 (fake-${engine})`);
+    return;
+  }
+  if (engine === 'codex' && argv[0] !== 'exec') {
+    console.error('fake-codex: exec が必要です');
+    process.exit(2);
+  }
+  const prompt = await readStdin();
+  const kind = field(prompt, 'ME_PROMPT_KIND') ?? 'unknown';
+  let { mode, control } = pickMode(kind);
+  const em = control.engineModes?.[engine];
+  if (typeof em === 'string') mode = em;
+  if (process.env.ME_FAKE_CONTROL) {
+    try {
+      const line = JSON.stringify({ at: new Date().toISOString(), engine, kind, mode, argv, cwd: process.cwd(), prompt }) + '\n';
+      writeFileSync(`${process.env.ME_FAKE_CONTROL}.calls.jsonl`, line, { flag: 'a' });
+    } catch {
+      /* 記録できなくても続ける */
+    }
+  }
+  if (control.delayMs) await sleep(control.delayMs);
+  if (mode === 'fail') return engineFinish(engine, { reply: '', code: 1, stderr: `fake-${engine}: わざと失敗しました` });
+  if (mode === 'not_logged_in' || mode.startsWith('login_expired')) {
+    if (engine === 'codex') return engineFinish(engine, { reply: '', code: 1, stderr: 'ERROR: unexpected status 401 Unauthorized: Your access token could not be refreshed. Please run `codex login`.' });
+    return engineFinish(engine, { reply: '', code: 41, stderr: 'Please set an Auth method in your settings.json or specify GEMINI_API_KEY.' });
+  }
+  if (mode === 'usage_limit') {
+    if (engine === 'codex') return engineFinish(engine, { reply: '', code: 1, stderr: 'ERROR: You’ve hit your usage limit. Try again at 3:00 AM.' });
+    return engineFinish(engine, { reply: '', code: 1, geminiError: { type: 'ApiError', code: 429, message: 'RESOURCE_EXHAUSTED: You exceeded your current quota.' } });
+  }
+  if (mode === 'network') return engineFinish(engine, { reply: '', code: 1, stderr: 'ERROR: stream error: fetch failed (network)' });
+  if (mode === 'slow') await sleep(control.slowMs ?? 60000);
+  if (mode === 'nofile') return engineFinish(engine, { reply: '完了しました。' });
+  if (mode === 'broken') return engineFinish(engine, { reply: '{ "ok": tru' });
+  if (mode === 'invalid') return engineFinish(engine, { reply: JSON.stringify({ unexpected: 1 }) });
+  const input = inlineInput(prompt);
+  const output = respond({ kind, mode, input, prompt, control, cwd: process.cwd(), sessionId: randomUUID(), engine });
+  const text = typeof output === 'string' ? output : JSON.stringify(output, null, 1);
+  // 本物と同じく、コードブロックで囲んで返すこともある(取り出しの確認)
+  engineFinish(engine, { reply: control.fenceReply ? '結果です。\n```json\n' + text + '\n```' : text });
+}
+
 async function main() {
+  const engine = process.env.ME_FAKE_ENGINE;
+  if (engine === 'codex' || engine === 'gemini') return mainEngine(engine);
   if (argv.includes('--version')) {
     console.log('0.0.0 (fake-claude)');
     return;

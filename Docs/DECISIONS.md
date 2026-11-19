@@ -239,3 +239,43 @@ claude -p --output-format json --permission-mode acceptEdits --tools "Read,Write
 - 確認問題の結果「何問中何問」は、満点だった問題の数(上書き後の点数で数える)。作り直したら新しい確認問題になり、目次の結果も新しい版のものになる。
 - smoke_real の教材の確認(`--textbook`)は、呼び出しを5回に収めるため、章を小さな形(例題1題・選択式、確認問題なし、800〜1500 字)で作る(`buildChapter` の `opts.spec` で上書き。アプリの画面からは使わない)。点検で修正が入ったら(6回目になるので)質問は飛ばす。
 
+## ほかの AI との接続(ChatGPT・Gemini)(セッション2 項目7)
+
+### 呼び方の確認結果(2026-11-19)
+- この PC には `codex` も `gemini` も入っていない(PATH に無い。npm のグローバルにも無い)→ **どちらも「未導入」**。`--help` は実行できなかったので、公式ドキュメントで確認した(下の出典)。導入はしていない。
+- **Codex CLI**(出典: learn.chatgpt.com/docs/non-interactive-mode、/docs/developer-commands?surface=cli、/docs/config-file/config-reference。developers.openai.com の Codex のページはここに転送される)
+  - 非対話: `codex exec`。プロンプトは引数か標準入力(`-` で標準入力を明示)。経過は標準エラー、最後の返答だけが標準出力。
+  - 作業フォルダ `-C/--cd`。サンドボックス `-s read-only | workspace-write | danger-full-access`(exec の既定は read-only)。
+  - モデル `-m`。画像 `-i/--image`(繰り返し可)。最後の返答をファイルへ `-o/--output-last-message`。JSONL の経過 `--json`。設定の上書き `-c key=value`。`--skip-git-repo-check`。
+  - コマンド実行の禁止: 設定 `features.shell_tool`(コマンド実行のツール。既定オン)を `-c features.shell_tool=false` で切る。承認 `approval_policy`(`never` など)。
+  - 続き: `codex exec resume <SESSION_ID>`。ログイン: `codex login`(ChatGPT のアカウント)、`codex login status`。
+  - 使用量上限の文言(github.com/openai/codex の codex-rs/protocol/src/error.rs): "You’ve hit your usage limit. …"(アポストロフィは ’)、"Your workspace is out of credits."。未ログインの決まった文言は見つからなかった(401 は "unexpected status 401 …")。
+  - **未確認**: シェルのツールを切ったときに、ファイルの読み書きがどこまでできるか。→ アプリは Codex にファイルを読み書きさせない形にした(下)。
+- **Gemini CLI**(出典: github.com/google-gemini/gemini-cli の docs/cli/cli-reference.md、docs/cli/headless.md、docs/reference/configuration.md、docs/reference/policy-engine.md、docs/resources/troubleshooting.md)
+  - **重要**: README に「2026-06-18 から、無料・Google AI Pro/Ultra の個人の利用は Antigravity CLI(`agy`)に移った」とある。Gemini CLI を個人の Google ログインで使えるのは、いまは有料の Code Assist のライセンスなどに限られる(API キーは、アプリが預からない方針なので使わない)。→ QUESTIONS.md 6。
+  - 非対話: `-p/--prompt`(標準入力のあとに足される)、`-o/--output-format text|json|stream-json`(json は `response`・`stats`・`error`)、`-m/--model`、`--approval-mode default|auto_edit|yolo|plan`(`--yolo` は非推奨)、`-r/--resume`。`--allowed-tools` は非推奨。
+  - ツールの制限: 設定 `tools.core`(使ってよい組み込みツール)・`tools.exclude`。プロジェクトの `.gemini/settings.json` に書ける。ポリシーエンジンで「確認を求める」になったツールは、非対話では拒否として扱われる。
+  - 終了コード: 41 = 認証の失敗、42 = 入力の誤り、52 = 設定の誤り、53 = ターン数の上限。使用量上限は公式の文言なし(利用者の報告では 429 / RESOURCE_EXHAUSTED / "You exceeded your current quota")。
+  - **未確認**: 作業フォルダ = いまのフォルダか、画像を read_file で読めるか。
+
+### アプリでの呼び方(暫定)
+- 窓口は今までの `callClaude`(`src/core/claude/task.ts`)のまま。役割(プロンプトの種類から決まる)→ エンジンを選び、ジョブの列・型検証とやり直し(最大2回)・logs/ への記録(エンジンとモデルも)・時間切れ・取り消し・1日の上限(エンジンごと)はどのエンジンでも同じに効く。
+- **Claude**: 今までどおり(ファイルで受け渡し、Read/Write/Edit/Glob/Grep だけ)。
+- **ChatGPT・Gemini**: ファイルを読み書きさせない「埋め込み」の形。入力 JSON をプロンプトに埋め込み(`src/prompts/_common_inline.md`)、返答の JSON をアプリが出力ファイルに書いてから同じ型で検証する。コマンド実行・ファイルの書き換えは一切させない(「フォルダ内の読み書きだけ」より狭い。読み取り専用)。
+  - Codex: `codex exec --skip-git-repo-check -C <プロジェクト> -s read-only -c features.shell_tool=false -c approval_policy="never" -o <io>/last_message.txt [-m モデル] [-i 画像...] -`(プロンプトは標準入力)。
+  - Gemini: `gemini --output-format json --approval-mode default [-m モデル] -p "<一言>"`(本体は標準入力)。プロジェクトに `.gemini/settings.json`(`tools.core` を読むツールだけ、`tools.exclude` にシェル・書き込み・ウェブ)を置く。承認モード default なので、書き込み・コマンドは非対話では拒否される(二重の歯止め)。
+  - 画像(読み取り): 入力の中の .png/.jpg のパスを集めて、Codex は `-i` で添付、Gemini はプロンプトに絶対パスを並べて read_file で読ませる。どちらも「画像を読める」扱い(`ENGINE_CAPS`。読めないエンジンを足したら、読み取りには割り当てられない)。
+  - 会話の続き: どちらも「できない」扱い(Codex の `exec resume` は作業フォルダ・権限の指定と組み合わせた非対話の再開を確かめられない。Gemini の `--resume` は会話の保存先が利用者のホームに依存する)。質問は、これまでのやりとりを入力(history)で渡しているので、それで代用する。
+  - プロジェクトのフォルダに `AGENTS.md`(Codex が読む)と `GEMINI.md`(Gemini が読む)を、CLAUDE.md と同じ内容で置く。
+  - npm で入れた `codex.cmd` / `gemini.cmd` は、子プロセスとしてそのまま起動できない(Windows)ので、中に書かれている本体の .js を node(Electron を node として)で動かす(`resolveEngineCommand`)。
+- 失敗の見分け(エンジンごと): Codex は 401・`codex login` → 未ログイン、"hit your usage limit"・"out of credits" → 上限。Gemini は終了コード 41・"auth method" → 未ログイン、429・RESOURCE_EXHAUSTED・"exceeded your current quota" → 上限。起動できない → 入っていない。案内の文言はエンジンごと(`src/shared/failures.ts`)。
+
+### 割り当て(暫定)
+- 3段階: アプリ全体の既定のエンジン → プロジェクトごとの上書き(project.json の `engines`)→ 役割ごと。プロジェクトの役割ごと > アプリの役割ごと > プロジェクトの既定 > アプリの既定。
+- 役割とプロンプトの種類: 問題作成 = 単元の調整・テストの設計・問題づくり・傾向・学習計画・接続確認、検算 = 解き直し・照らし合わせ、読み取り = ページの読み取り・読み直し、採点 = 採点、教材 = 章の本文・点検・修正・補足・解説・授業ノート、質問 = 質問(`KIND_ROLE`)。
+- 「検算は問題作成と別の AI にする」がオンで、検算が問題作成と同じエンジンになるとき: 接続確認で「つながっている」と分かっているほかのエンジン(Claude は常に使える扱い)を Claude → ChatGPT → Gemini の順で選ぶ。無ければ同じエンジンで検算し、記録に理由を残す。
+- 1日の上限はエンジンごと(Claude は今までの `usage.json`・「1日の上限」、ほかは `usage_<エンジン>.json`・エンジンごとの上限、既定 200)。
+- 作ったもの(テスト・検算の記録・読み取り・採点・解説・章・点検の記録・質問の答え)に `madeBy`(エンジン・モデル)を残す。前の版のファイルに無いものは Claude として扱う。「品質」欄はエンジン別の表も出す(作ったエンジンで分ける。検算は問題を作ったエンジン、教材の点検は本文を書いたエンジンの成績として数える)。
+- 接続確認: `--version` → 短い呼び出し1回(ping)。結果は設定に残す(画面の「保存する」では上書きしない)。
+- smoke_real `--engines`: 入っているエンジンごとに、問題を1問(選択式)作る → Claude で検算 → 採点(そのエンジンの呼び出しは2回、上限3回)。未導入・未ログインは飛ばす。
+

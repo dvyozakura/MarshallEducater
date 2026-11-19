@@ -1,3 +1,4 @@
+import { ProjectEnginesSection } from './EngineSettings';
 import { useEffect, useState } from 'react';
 import { daysLeftLabel, formatDateJa } from '../../shared/dates';
 import { EXAM_TYPE_LABEL, TARGET_LEVEL_LABEL, TEST_STATUS_LABEL, type Project, type Test } from '../../shared/schema';
@@ -159,6 +160,7 @@ export function Dashboard({ projectId }: { projectId: string }) {
           ))}
         </Section>
       )}
+      <ProjectEnginesSection projectId={projectId} />
     </div>
   );
 }

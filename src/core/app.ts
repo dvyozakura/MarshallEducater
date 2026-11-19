@@ -1,5 +1,7 @@
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { todayString } from '../shared/dates';
+import { ENGINE_SHORT, resolveEngine, roleOfKind, type EngineAssign, type EngineId, type ResolvedEngine } from '../shared/engines';
 import { FORMAT_VERSION, AppSettingsSchema, type AppSettings } from '../shared/schema';
 import { DailyLimiter } from './claude/limiter';
 import type { ClaudeSettings } from './claude/runner';
@@ -110,14 +112,65 @@ export class AppCore {
     };
   }
 
-  /** 1日の上限の数え役。データの場所が設定で変わっても追えるよう、毎回いまの場所で作る。 */
+  /** エンジンごとの呼び出しの設定。 */
+  engineSettings(engine: EngineId): ClaudeSettings {
+    if (engine === 'claude') return this.claudeSettings();
+    const c = this.settings.engines[engine];
+    return { engine, claudePath: c.path, model: c.model, timeoutMs: this.settings.timeoutMin * 60 * 1000, extraEnv: this.opts.extraEnv };
+  }
+
+  /** 1日の上限の数え役(Claude)。データの場所が設定で変わっても追えるよう、毎回いまの場所で作る。 */
   get limiter(): DailyLimiter {
+    return this.limiterFor('claude');
+  }
+
+  /** エンジンごとの1日の上限の数え役。Claude は usage.json(前の版と同じ)、ほかは usage_<エンジン>.json。 */
+  limiterFor(engine: EngineId): DailyLimiter {
+    const file = engine === 'claude' ? 'usage.json' : `usage_${engine}.json`;
+    const limit = () => (engine === 'claude' ? this.settings.dailyLimit : this.settings.engines[engine].dailyLimit);
     // 日付は todayString() に合わせる(テストでは ME_TODAY で差し替えられる)
-    return new DailyLimiter(join(this.dataDir(), 'usage.json'), () => this.settings.dailyLimit, () => new Date(`${todayString()}T12:00:00`));
+    return new DailyLimiter(join(this.dataDir(), file), limit, () => new Date(`${todayString()}T12:00:00`));
+  }
+
+  /** 接続確認で「つながっている」と分かっているエンジン。 */
+  availableEngines(): EngineId[] {
+    return this.settings.engineStatus.filter((s) => s.status === 'ok').map((s) => s.engine);
+  }
+
+  /** プロジェクトの割り当ての上書き(project.json の engines)。読めなければ無し。 */
+  private projectAssign(projectDir: string): EngineAssign | null {
+    const file = join(projectDir, 'project.json');
+    if (!existsSync(file)) return null;
+    try {
+      return readData(file, Files.project).engines ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 役割(プロンプトの種類から決まる)とプロジェクトから、使うエンジンを決める。 */
+  resolveEngineFor(kind: string, projectDir: string | null): ResolvedEngine {
+    return resolveEngine(roleOfKind(kind), {
+      app: { defaultEngine: this.settings.defaultEngine, roles: this.settings.engineRoles, verifyWithOther: this.settings.verifyWithOther },
+      project: projectDir ? this.projectAssign(projectDir) : null,
+      available: this.availableEngines(),
+    });
+  }
+
+  /** 進み具合の表示に使う、その種類の仕事を担当するエンジンの名前(Claude・ChatGPT・Gemini)。 */
+  who(kind: string, projectId: string | null): string {
+    return ENGINE_SHORT[this.resolveEngineFor(kind, projectId ? this.projectDir(projectId) : null).engine];
   }
 
   claudeEnv(): ClaudeEnv {
-    return { settings: this.claudeSettings(), limiter: this.limiter };
+    return {
+      settings: this.claudeSettings(),
+      limiter: this.limiter,
+      select: (kind, projectDir, named) => {
+        const r: ResolvedEngine = named ? { engine: named } : this.resolveEngineFor(kind, projectDir);
+        return { settings: this.engineSettings(r.engine), limiter: this.limiterFor(r.engine), note: r.note };
+      },
+    };
   }
 
   projectDir(projectId: string): string {

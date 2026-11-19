@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { isValidDateString } from '../shared/dates';
+import { EngineAssignSchema, type EngineAssign } from '../shared/engines';
 import {
   EXAM_TYPE_LABEL,
   FORMAT_VERSION,
@@ -12,6 +13,7 @@ import {
 } from '../shared/schema';
 import { initialUnitTree } from '../shared/subjects';
 import type { AppCore } from './app';
+import { geminiProjectSettings } from './claude/engines';
 import { loadPromptFile, renderTemplate } from './claude/prompts';
 import { ensureDir, safeFileName, writeFileAtomic } from './fsutil';
 import { ProjectPaths } from './paths';
@@ -111,6 +113,11 @@ export function writeProjectFiles(paths: ProjectPaths, project: Project): void {
   writeData(paths.projectJson, Files.project, project);
   writeFileAtomic(paths.claudeMd, renderProjectClaudeMd(project));
   writeFileAtomic(paths.claudeSettings, JSON.stringify(projectClaudeSettings(), null, 2));
+  // ほかの教員エンジン: Codex CLI は AGENTS.md、Gemini CLI は GEMINI.md を読む。役割は CLAUDE.md と同じ。
+  // Gemini CLI はプロジェクトの .gemini/settings.json でシェル・書き込みのツールを外す(DECISIONS.md)
+  writeFileAtomic(join(paths.root, 'AGENTS.md'), renderProjectClaudeMd(project));
+  writeFileAtomic(join(paths.root, 'GEMINI.md'), renderProjectClaudeMd(project));
+  writeFileAtomic(join(paths.root, '.gemini', 'settings.json'), JSON.stringify(geminiProjectSettings(), null, 2));
   for (const s of project.subjects) ensureSubjectFiles(paths, s);
 }
 
@@ -151,6 +158,14 @@ export function createProject(core: AppCore, input: ProjectInput): Project {
 }
 
 /** 設定を変える。CLAUDE.md も更新する。外した科目のフォルダは消さない(データを守る)。 */
+/** 教員エンジンの割り当てを、このプロジェクトだけ上書きする(null でアプリ全体の設定に戻す)。 */
+export function setProjectEngines(core: AppCore, projectId: string, assign: EngineAssign | null): Project {
+  const current = getProject(core, projectId);
+  const project: Project = { ...current, engines: assign ? EngineAssignSchema.parse(assign) : null, updatedAt: new Date().toISOString() };
+  writeData(core.paths(projectId).projectJson, Files.project, project);
+  return project;
+}
+
 export function updateProject(core: AppCore, projectId: string, input: ProjectInput): Project {
   const v = validateInput(input);
   const current = getProject(core, projectId);

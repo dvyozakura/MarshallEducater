@@ -4,7 +4,7 @@ import { formatElapsed } from '../../shared/dates';
 import { choiceMark } from '../../shared/labels';
 import { DIFFICULTY_LABEL, MISTAKE_LABEL, PROBLEM_FORMAT_LABEL, TEST_STATUS_LABEL, type GradeItem, type Problem } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, Section, SvgFigure } from '../components';
+import { ErrorBox, Md, Section, SvgFigure, MadeByTag } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 
@@ -149,7 +149,8 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
               </div>
               <div className="muted">
                 {reading?.method === 'scan' ? '紙の答案' : 'アプリ内で解答'}
-                {reading?.elapsedSec != null ? ` ・ かかった時間 ${formatElapsed(reading.elapsedSec * 1000)}(制限 ${test.timeLimitMin} 分)` : ''}
+                {reading?.elapsedSec != null ? ` ・ かかった時間 ${formatElapsed(reading.elapsedSec * 1000)}(制限 ${test.timeLimitMin} 分)` : ''}{' '}
+                <MadeByTag madeBy={grading.madeBy} what="採点" testId="madeby-grading" /> <MadeByTag madeBy={explanations?.madeBy} what="解説" testId="madeby-explain" /> <MadeByTag madeBy={test.madeBy} what="問題" testId="madeby-test" />
               </div>
             </div>
             <div className="result-marks" data-testid="result-marks">

@@ -34,7 +34,7 @@ export async function designTest(core: AppCore, projectId: string, subjectId: st
   const trend = existsSync(sp.trendJson) ? readData(sp.trendJson, Files.trend) : null;
   const weakness = existsSync(sp.weaknessJson) ? readData(sp.weaknessJson, Files.weakness) : null;
   const ids = new Set(units.map((u) => u.id));
-  ctx.progress(`Claude が${TEST_KIND_LABEL[kind]}の内容を決めています`);
+  ctx.progress(`${core.who('design_test', projectId)} が${TEST_KIND_LABEL[kind]}の内容を決めています`);
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'design_test',

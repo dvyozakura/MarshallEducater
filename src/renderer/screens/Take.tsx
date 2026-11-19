@@ -3,7 +3,7 @@ import type { TakeView } from '../../core/answers';
 import { choiceMark } from '../../shared/labels';
 import { DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, TEST_KIND_LABEL, type Problem } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, Section, SvgFigure } from '../components';
+import { ErrorBox, Md, Section, SvgFigure, MadeByTag } from '../components';
 import { useNav } from '../nav';
 import { PdfButtons } from './subject/TestsTab';
 
@@ -154,7 +154,7 @@ export function Take({ projectId, subjectId, testId }: { projectId: string; subj
       <div className="page narrow" data-testid="screen-take">
         <Section title={test.title}>
           <div data-testid="take-summary">
-            {TEST_KIND_LABEL[test.kind]} ・ {test.problems.length} 問 ・ {total} 点 ・ 制限時間 {test.timeLimitMin} 分
+            {TEST_KIND_LABEL[test.kind]} ・ {test.problems.length} 問 ・ {total} 点 ・ 制限時間 {test.timeLimitMin} 分 <MadeByTag madeBy={test.madeBy} what="問題" testId="madeby-test" />
           </div>
           {test.instructions && <div className="info">{test.instructions}</div>}
           <div className="hint">「始める」を押すと時計が動きます。途中で他の画面に移っても、入力した内容と使った時間は残ります。</div>

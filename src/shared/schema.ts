@@ -1,5 +1,6 @@
 // データの型はここに1か所でまとめる。ファイルの読み書き時と、Claude の出力の検証に同じ型を使う。
 import { z } from 'zod';
+import { EngineAssignSchema, EngineConfigSchema, EngineIdSchema, EngineRoleSchema, EngineStatusSchema, MadeBySchema } from './engines';
 
 /** ファイル形式の版番号(全ファイル共通で今は 1)。 */
 export const FORMAT_VERSION = 1;
@@ -18,6 +19,18 @@ export const AppSettingsSchema = z.object({
   concurrency: z.number().int().min(1).max(8).default(2),
   dailyLimit: z.number().int().min(1).max(100000).default(200),
   timeoutMin: z.number().int().min(1).max(180).default(15),
+  /** 既定の教員エンジン(Claude のほか ChatGPT・Gemini)。 */
+  defaultEngine: EngineIdSchema.default('claude'),
+  /** 役割ごとの割り当て(書いていない役割は既定のエンジン)。 */
+  engineRoles: z.partialRecord(EngineRoleSchema, EngineIdSchema).default({}),
+  /** 検算は問題作成と別の AI にする。 */
+  verifyWithOther: z.boolean().default(false),
+  /** Claude 以外のエンジンの設定(Claude は claudePath・model・dailyLimit)。 */
+  engines: z
+    .object({ codex: EngineConfigSchema.default(EngineConfigSchema.parse({})), gemini: EngineConfigSchema.default(EngineConfigSchema.parse({})) })
+    .default({ codex: EngineConfigSchema.parse({}), gemini: EngineConfigSchema.parse({}) }),
+  /** 最後の接続確認の結果(エンジンごと)。 */
+  engineStatus: z.array(EngineStatusSchema).default([]),
 });
 export type AppSettings = z.infer<typeof AppSettingsSchema>;
 
@@ -60,6 +73,8 @@ export const ProjectSchema = z.object({
   subjects: z.array(SubjectRefSchema),
   createdAt: z.string(),
   updatedAt: z.string(),
+  /** 教員エンジンの割り当ての上書き(null = アプリ全体の設定に従う)。 */
+  engines: EngineAssignSchema.nullish(),
 });
 export type Project = z.infer<typeof ProjectSchema>;
 
@@ -252,6 +267,8 @@ export const ExtractedSchema = z.object({
   readAt: z.string(),
   /** 資料全体を確定した日時。未確定は null。 */
   confirmedAt: z.string().nullable().default(null),
+  /** どのエンジン・モデルで作ったか(前の版のファイルには無い = Claude)。 */
+  madeBy: MadeBySchema.nullish(),
 });
 export type Extracted = z.infer<typeof ExtractedSchema>;
 
@@ -365,6 +382,8 @@ export const TestSchema = z.object({
   status: TestStatusSchema.default('ready'),
   /** 教材の章の確認問題のとき、その章の単元 ID。 */
   chapterUnitId: z.string().nullable().default(null),
+  /** どのエンジン・モデルで作ったか(前の版のファイルには無い = Claude)。 */
+  madeBy: MadeBySchema.nullish(),
 });
 export type Test = z.infer<typeof TestSchema>;
 
@@ -396,6 +415,9 @@ export const VerifySchema = z.object({
   testId: z.string(),
   records: z.array(VerifyRecordSchema),
   counts: z.object({ adopted: z.number().int(), regenerated: z.number().int(), discarded: z.number().int() }),
+  /** 問題を作ったエンジンと、検算したエンジン。 */
+  madeBy: MadeBySchema.nullish(),
+  verifiedBy: MadeBySchema.nullish(),
 });
 export type Verify = z.infer<typeof VerifySchema>;
 
@@ -490,6 +512,8 @@ export const GradingSchema = z.object({
   items: z.array(GradeItemSchema),
   /** 上書きの履歴。 */
   overrides: z.array(z.object({ at: z.string(), problemId: z.string(), from: z.number(), to: z.number(), note: z.string() })).default([]),
+  /** どのエンジン・モデルで作ったか(前の版のファイルには無い = Claude)。 */
+  madeBy: MadeBySchema.nullish(),
 });
 export type Grading = z.infer<typeof GradingSchema>;
 
@@ -514,6 +538,8 @@ export const ExplanationsSchema = z.object({
   testId: z.string(),
   updatedAt: z.string(),
   items: ExplainOutputSchema.shape.items,
+  /** どのエンジン・モデルで作ったか(前の版のファイルには無い = Claude)。 */
+  madeBy: MadeBySchema.nullish(),
 });
 export type Explanations = z.infer<typeof ExplanationsSchema>;
 
@@ -653,6 +679,8 @@ export const ChatSchema = z.object({
       at: z.string(),
       /** 「ここを質問」で選んだ箇所(教材の本文からの引用)。 */
       quote: z.string().nullable().optional(),
+      /** 答えたエンジン(assistant のとき)。 */
+      madeBy: MadeBySchema.nullable().optional(),
     }),
   ),
   createdAt: z.string(),
@@ -828,6 +856,8 @@ export const ChapterSchema = z.object({
   quizTestId: z.string().nullable().default(null),
   /** 質問から足した補足(教材に反映)。 */
   supplements: z.array(ChapterSupplementSchema).default([]),
+  /** どのエンジン・モデルで作ったか(前の版のファイルには無い = Claude)。 */
+  madeBy: MadeBySchema.nullish(),
 });
 export type Chapter = z.infer<typeof ChapterSchema>;
 
@@ -843,6 +873,9 @@ export const ChapterReviewRecordSchema = z.object({
   revised: z.boolean(),
   /** 例題・確認問題の検算の結果(章の本文の点検のときだけ)。 */
   verify: z.object({ adopted: z.number().int(), regenerated: z.number().int(), discarded: z.number().int() }).nullable().default(null),
+  /** 本文を書いたエンジンと、点検したエンジン。 */
+  madeBy: MadeBySchema.nullish(),
+  reviewedBy: MadeBySchema.nullish(),
 });
 export type ChapterReviewRecord = z.infer<typeof ChapterReviewRecordSchema>;
 export const ChapterReviewSchema = z.object({

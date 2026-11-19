@@ -2,6 +2,8 @@
 // Electron に依存しないので、単体テストからも同じ入口で呼べる。
 import { resolve, sep } from 'node:path';
 import { todayString } from '../shared/dates';
+import { ENGINE_CAPS, ENGINE_IDS, ENGINE_LABEL, ENGINE_ROLES, ENGINE_SHORT, KIND_ROLE, type EngineAssign, type EngineId, type EngineRole } from '../shared/engines';
+import { checkEngine } from './engine_check';
 import type { JobInfo } from '../shared/jobs';
 import { PingOutputSchema, type AppSettings, type ChatContext, type ProjectInput, type UnitNode } from '../shared/schema';
 import { findUnit, SUBJECT_PRESETS } from '../shared/subjects';
@@ -14,7 +16,12 @@ import { createDesignedTest } from './diagnostic';
 import { ensureDir } from './fsutil';
 import { getGrading, getResultView, gradeTest, gradingTotals, onGraded, overrideGrade } from './grading';
 import type { JobContext } from './jobs';
-import { createProject, getProject, getSubject, listProjects, updateProject } from './projects';
+import { createProject, getProject, getSubject, listProjects, setProjectEngines, updateProject } from './projects';
+
+/** 役割の代表のプロンプトの種類(割り当ての結果を見せるのに使う)。 */
+function roleKind(role: EngineRole): string {
+  return Object.entries(KIND_ROLE).find(([, r]) => r === role)?.[0] ?? 'ping';
+}
 import { createPlan, getPlanView } from './plan';
 import { exportTestPdf, exportTextbookPdf, type TestPdfKind } from './print';
 import { getQuality } from './quality';
@@ -54,13 +61,14 @@ export function createApi(core: AppCore) {
   }
   const subjectName = (projectId: string, subjectId: string) => getSubject(getProject(core, projectId), subjectId).name;
 
-  const startPing = defineJob<Record<string, never>>('ping', {
-    title: () => 'Claude との接続の確認',
-    run: async (_p, ctx) => {
+  const startPing = defineJob<{ engine?: EngineId }>('ping', {
+    title: (p) => `${ENGINE_SHORT[p.engine ?? 'claude']} との接続の確認`,
+    run: async (p, ctx) => {
+      if (p.engine) return checkEngine(core, p.engine, ctx);
       const dir = core.dataDir();
       ensureDir(dir);
       ctx.progress('Claude の返事を待っています');
-      const r = await callClaude({ projectDir: dir, kind: 'ping', vars: { note: '' }, schema: PingOutputSchema, env: core.claudeEnv(), signal: ctx.signal });
+      const r = await callClaude({ projectDir: dir, kind: 'ping', vars: { note: '' }, schema: PingOutputSchema, env: core.claudeEnv(), signal: ctx.signal, engine: 'claude' });
       return r.data;
     },
   });
@@ -210,8 +218,31 @@ export function createApi(core: AppCore) {
       settingsProblem: core.settingsProblem,
     }),
     getSettings: (): AppSettings => core.getSettings(),
-    updateSettings: (patch: Partial<AppSettings>): AppSettings => core.updateSettings(patch),
+    updateSettings: (patch: Partial<AppSettings>): AppSettings => {
+      // 接続確認の結果はアプリが書く。画面が持っている古い値で上書きしない
+      const { engineStatus: _ignored, ...rest } = patch;
+      return core.updateSettings(rest);
+    },
     usage: () => ({ used: core.limiter.used(), limit: core.limiter.limit() }),
+    /** エンジンごとの今日の呼び出し回数と上限。 */
+    engineUsage: () => ENGINE_IDS.map((engine) => ({ engine, used: core.limiterFor(engine).used(), limit: core.limiterFor(engine).limit() })),
+    /** 教員エンジンの一覧(設定画面): できること・接続確認の結果・役割ごとの割り当ての結果。 */
+    engineInfo: (projectId?: string | null) => {
+      const s = core.getSettings();
+      const dir = projectId ? core.projectDir(projectId) : null;
+      return {
+        engines: ENGINE_IDS.map((engine) => ({
+          engine,
+          label: ENGINE_LABEL[engine],
+          caps: ENGINE_CAPS[engine],
+          status: s.engineStatus.find((x) => x.engine === engine) ?? { engine, status: 'unchecked' as const, version: '', message: '', checkedAt: null },
+        })),
+        /** いまの設定で、役割ごとに実際に使うエンジン(プロジェクトを渡せば、その上書きも含めて)。 */
+        resolved: ENGINE_ROLES.map((role) => ({ role, ...core.resolveEngineFor(roleKind(role), dir) })),
+      };
+    },
+    /** プロジェクトごとの割り当ての上書き(null でアプリ全体の設定に戻す)。 */
+    setProjectEngines: (projectId: string, assign: EngineAssign | null) => setProjectEngines(core, projectId, assign),
     /** 設定画面の「品質」欄: 検算の結果、読み取りの補正率、採点の上書き。 */
     getQuality: () => getQuality(core),
 
@@ -229,7 +260,7 @@ export function createApi(core: AppCore) {
       return core.jobs.add({ kind: job.kind, title: job.title, projectId: job.projectId, params, run: (ctx) => def.run(params, ctx) });
     },
     /** Claude を呼べるかの確認(設定画面の「接続の確認」)。 */
-    startPing: (): JobInfo => startPing({}),
+    startPing: (engine?: EngineId): JobInfo => startPing(engine ? { engine } : {}),
 
     // ───── プロジェクト ─────
     subjectPresets: () => SUBJECT_PRESETS.map((p) => ({ name: p.name, group: p.group })),

@@ -26,7 +26,7 @@ interface Entry {
 
 function toFailure(e: unknown, canceled: boolean): FailureInfo {
   if (canceled) return { kind: 'canceled', message: '取り消しました' };
-  if (e instanceof ClaudeError) return { kind: e.kind, message: e.detail };
+  if (e instanceof ClaudeError) return { kind: e.kind, message: e.detail, ...(e.engine !== 'claude' ? { engine: e.engine } : {}) };
   return { kind: 'other', message: e instanceof Error ? e.message : String(e) };
 }
 

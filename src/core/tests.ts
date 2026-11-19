@@ -1,6 +1,7 @@
 // テスト(診断・今日の課題・模擬試験・演習)の作成と一覧。問題は generate.ts の仕組みで作り、検算の結果を verify.json に残す。
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import type { MadeBy } from '../shared/engines';
 import { FORMAT_VERSION, type AnswerKey, type Problem, type Test, type TestKind, type Verify, type VerifyOutcome } from '../shared/schema';
 import type { AppCore } from './app';
 import { newId } from './fsutil';
@@ -47,7 +48,7 @@ export function saveTest(
   projectId: string,
   subjectId: string,
   plan: Omit<TestPlan, 'requests' | 'purpose'>,
-  result: { problems: Array<VerifiedProblem & { slot: number }>; events: VerifyEvent[] },
+  result: { problems: Array<VerifiedProblem & { slot: number }>; events: VerifyEvent[]; madeBy?: MadeBy | null; verifiedBy?: MadeBy | null },
 ): Test {
   if (result.problems.length === 0) throw new Error('保存する問題がありません');
   const counts: Record<VerifyOutcome, number> = { adopted: 0, regenerated: 0, discarded: 0 };
@@ -80,6 +81,8 @@ export function saveTest(
     testId,
     records: result.events.map((e) => ({ problemId: e.outcome === 'discarded' ? null : (slotToId.get(e.slot) ?? null), unitId: e.unitId, outcome: e.outcome, reason: e.reason })),
     counts,
+    madeBy: result.madeBy,
+    verifiedBy: result.verifiedBy,
   };
   // 答えと検算の記録を先に書き、最後に test.json を書く(test.json があれば、そろっている)
   writeData(tp.answerKeyJson, Files.answerKey, key);
@@ -97,6 +100,7 @@ export function saveTest(
     date: plan.date ?? null,
     status: 'ready',
     chapterUnitId: plan.chapterUnitId ?? null,
+    madeBy: result.madeBy,
   });
 }
 

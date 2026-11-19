@@ -1,5 +1,5 @@
 # overnight.ps1 - runs Claude Code in a loop AND shows progress in one window.
-# Usage: powershell -ExecutionPolicy Bypass -File .\overnight.ps1 [-Hours 8] [-PauseSec 30] [-MaxCallMin 180]
+# Usage: powershell -ExecutionPolicy Bypass -File .\overnight.ps1 [-Hours 8] [-PauseSec 30] [-MaxCallMin 180] [-Model opus]
 # Stops by itself when Claude writes Docs\SESSION_DONE.txt (all items of NEXT_SESSION done), or at -Hours.
 # Keys: Enter = refresh now / S = stop after the current call / K = kill the current call and stop / Q = quit now
 # Keep this file ASCII only (Windows PowerShell 5.1 breaks on non-ASCII text without BOM).
@@ -7,7 +7,8 @@ param(
     [double]$Hours = 8,
     [int]$PauseSec = 30,
     [int]$MaxCallMin = 180,
-    [string]$WatchProc = "electron"
+    [string]$WatchProc = "electron",
+    [string]$Model = "opus"
 )
 
 $first = "Read CLAUDE.md and follow the autonomous mode section. Then read Docs/NEXT_SESSION.md and do every item in order. The user is asleep. Never stop; commit after each item."
@@ -52,7 +53,7 @@ function Save-CallLog([string]$reason) {
 
 function Start-Call {
     $script:call++
-    if ($script:call -eq 1) { $argStr = "-p `"$first`"" } else { $argStr = "-p --continue `"$next`"" }
+    if ($script:call -eq 1) { $argStr = "--model $Model -p `"$first`"" } else { $argStr = "--model $Model -p --continue `"$next`"" }
     $script:callLog = "Logs\call_{0:D3}.log" -f $script:call
     $script:proc = Start-Process -FilePath $claudeExe -ArgumentList $argStr -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput $script:callLog -RedirectStandardError ($script:callLog + ".err")
@@ -62,7 +63,7 @@ function Start-Call {
 function Show-Screen {
     $now = Get-Date
     Clear-Host
-    Write-Host "=== Overnight: MarshallEducater ===" -ForegroundColor Cyan
+    Write-Host "=== Overnight: MarshallEducater (model: $Model) ===" -ForegroundColor Cyan
     Write-Host ("Elapsed: {0:hh\:mm\:ss}   Ends at: {1:HH:mm}   Left: {2:hh\:mm\:ss}" -f ($now - $start), $end, ([TimeSpan]::FromSeconds([math]::Max(0, ($end - $now).TotalSeconds))))
     if ($script:finished) {
         Write-Host "Loop: FINISHED $($script:lastNote)" -ForegroundColor Magenta

@@ -1,4 +1,5 @@
 // 解説・授業ノート・質問。どれも Claude が書き、プロジェクトのフォルダに普通のファイルとして残す。
+import type { MadeBy } from '../shared/engines';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { choiceMark } from '../shared/labels';
@@ -117,10 +118,11 @@ export async function explainTest(core: AppCore, projectId: string, subjectId: s
   const targets = new Set(all ? wrongProblemIds(grading) : missingExplanations(grading, previous));
   const problems = test.problems.filter((p) => targets.has(p.id));
   let items = (previous?.items ?? []).filter((i) => !targets.has(i.problemId));
+  let madeBy: MadeBy | null = previous?.madeBy ?? null;
 
   for (let at = 0; at < problems.length; at += EXPLAIN_CHUNK) {
     const chunk = problems.slice(at, at + EXPLAIN_CHUNK);
-    ctx.progress(problems.length > EXPLAIN_CHUNK ? `Claude が解説を書いています(${at + 1}〜${at + chunk.length} / ${problems.length} 問)` : `Claude が解説を書いています(${problems.length} 問)`);
+    ctx.progress(problems.length > EXPLAIN_CHUNK ? `${core.who('explain', projectId)} が解説を書いています(${at + 1}〜${at + chunk.length} / ${problems.length} 問)` : `${core.who('explain', projectId)} が解説を書いています(${problems.length} 問)`);
     const r = await callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'explain',
@@ -163,11 +165,12 @@ export async function explainTest(core: AppCore, projectId: string, subjectId: s
         return null;
       },
     });
+    madeBy = r.madeBy;
     items = [...items, ...chunk.map((p) => r.data.items.find((i) => i.problemId === p.id)!)];
     // 途中で止まっても、できた分は残す
     const order = new Map(test.problems.map((p, i) => [p.id, i]));
     items.sort((a, b) => (order.get(a.problemId) ?? 0) - (order.get(b.problemId) ?? 0));
-    const saved = writeData(tp.explanationsJson, Files.explanations, { version: FORMAT_VERSION, testId, updatedAt: new Date().toISOString(), items });
+    const saved = writeData(tp.explanationsJson, Files.explanations, { version: FORMAT_VERSION, testId, updatedAt: new Date().toISOString(), items, madeBy });
     writeFileAtomic(tp.explanationsMd, explanationsMarkdown(test, grading, key, reading, saved));
   }
   return getExplanations(core, projectId, subjectId, testId) ?? writeData(tp.explanationsJson, Files.explanations, { version: FORMAT_VERSION, testId, updatedAt: new Date().toISOString(), items });
@@ -240,7 +243,7 @@ export async function createNote(core: AppCore, projectId: string, subjectId: st
   const row = getWeaknessView(core, projectId, subjectId).rows.find((r) => r.unitId === unitId);
   const trend = getTrend(core, projectId, subjectId);
   const file = notePath(core, projectId, subjectId, unitId);
-  ctx.progress(`Claude が「${unit.name}」の授業ノートを書いています`);
+  ctx.progress(`${core.who('note', projectId)} が「${unit.name}」の授業ノートを書いています`);
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'note',
@@ -510,7 +513,7 @@ export async function answerChat(core: AppCore, projectId: string, subjectId: st
       resumeSessionId,
       check: (d) => (d.answer.trim() ? null : 'answer を空にしないでください。'),
     });
-  ctx.progress('Claude が質問に答えています');
+  ctx.progress(`${core.who('chat', projectId)} が質問に答えています`);
   let r;
   try {
     r = await call(chat.sessionId ?? undefined);
@@ -527,7 +530,7 @@ export async function answerChat(core: AppCore, projectId: string, subjectId: st
   return writeData(chatFile(core, projectId, subjectId, chatId), Files.chat, {
     ...now,
     sessionId: r.sessionId ?? now.sessionId,
-    messages: [...now.messages, { role: 'assistant' as const, text: r.data.answer.trim(), at }],
+    messages: [...now.messages, { role: 'assistant' as const, text: r.data.answer.trim(), at, madeBy: r.madeBy }],
     updatedAt: at,
   });
 }

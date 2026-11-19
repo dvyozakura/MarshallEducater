@@ -3,6 +3,8 @@ import type { AppSettings } from '../../shared/schema';
 import { api, errorMessage } from '../api';
 import { ErrorBox, Md, Section } from '../components';
 import { JobRow, useJobRunner } from '../jobs';
+import { ENGINE_SHORT } from '../../shared/engines';
+import { EngineSettingsSection } from './EngineSettings';
 
 type Info = Awaited<ReturnType<typeof api.appInfo>>;
 
@@ -13,6 +15,7 @@ export function Settings() {
   const [quality, setQuality] = useState<Awaited<ReturnType<typeof api.getQuality>> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [savedCount, setSavedCount] = useState(0);
   const [mathSample, setMathSample] = useState('2次方程式 $ax^2+bx+c=0$ の解は\n\n$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$');
 
   const load = async () => {
@@ -46,6 +49,7 @@ export function Settings() {
       setInfo(await api.appInfo());
       setUsage(await api.usage());
       setSaved(true);
+      setSavedCount((n) => n + 1);
     } catch (e) {
       setError(errorMessage(e));
     }
@@ -112,6 +116,14 @@ export function Settings() {
           {saved && <span className="hint" data-testid="settings-saved">保存しました</span>}
         </div>
       </Section>
+
+      <EngineSettingsSection settings={settings} set={set} savedCount={savedCount} />
+      <div className="buttons">
+        <button className="primary" data-testid="save-settings-engines" onClick={() => void save()}>
+          教員エンジンの設定を保存する
+        </button>
+        {saved && <span className="hint">保存しました</span>}
+      </div>
 
       <Section title="Claude との接続">
         <div className="row">
@@ -211,6 +223,35 @@ export function Settings() {
               </tr>
             </tbody>
           </table>
+        )}
+        {quality && quality.byEngine.length > 0 && (
+          <>
+            <div className="hint">作ったエンジン別(問題・読み取り・採点・教材を作ったエンジンで分けています。記録の無い前の版のものは Claude として数えます):</div>
+            <table className="grid" data-testid="q-by-engine">
+              <thead>
+                <tr>
+                  <th>エンジン</th>
+                  <th>検算(1回で通った割合)</th>
+                  <th>問題の読み取り(補正率)</th>
+                  <th>答案の読み取り(補正率)</th>
+                  <th>教材の点検(指摘あり)</th>
+                  <th>採点の上書き</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quality.byEngine.map(({ engine, quality: q }) => (
+                  <tr key={engine} data-testid={`q-engine-${engine}`}>
+                    <th>{ENGINE_SHORT[engine]}</th>
+                    <td>{q.verify.total === 0 ? '—' : `${q.verify.adoptedRate}%(${q.verify.adopted}/${q.verify.total})`}</td>
+                    <td>{q.problems.rate === null ? '—' : `${q.problems.rate}%`}</td>
+                    <td>{q.answers.rate === null ? '—' : `${q.answers.rate}%`}</td>
+                    <td>{q.textbook.reviews === 0 ? '—' : `${q.textbook.withIssues} / ${q.textbook.reviews} 回`}</td>
+                    <td>{q.grading.items === 0 ? '—' : `${q.grading.overridden} / ${q.grading.items} 問`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </Section>
 

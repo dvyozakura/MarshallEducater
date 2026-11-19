@@ -2,6 +2,7 @@
 // 全プロジェクトのファイルを数えるだけで、Claude は呼ばない。
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { ENGINE_IDS, type EngineId, type MadeBy } from '../shared/engines';
 import type { AppCore } from './app';
 import { getGrading } from './grading';
 import type { SourcePaths } from './paths';
@@ -36,11 +37,23 @@ export interface Quality {
   textbook: { chapters: number; reviews: number; withIssues: number; issues: number; revised: number };
 }
 
+/** 品質(全体)と、作ったエンジンごとの内訳(記録のあるエンジンだけ)。 */
+export interface QualityReport extends Quality {
+  byEngine: Array<{ engine: EngineId; quality: Quality }>;
+}
+
+/** 記録の無い(前の版の)ものは Claude で作ったものとして数える。 */
+const engineOf = (m: MadeBy | null | undefined): EngineId => m?.engine ?? 'claude';
+
 const pct = (part: number, whole: number): number | null => (whole > 0 ? Math.round((part / whole) * 1000) / 10 : null);
 
-function addCorrections(q: ReadingQuality, paths: SourcePaths): void {
+function addCorrections(q: ReadingQuality, paths: SourcePaths, want: EngineId | null): void {
   if (!existsSync(paths.correctionsJson)) return;
   try {
+    if (want) {
+      const ex = existsSync(paths.extractedOriginalJson) ? readData(paths.extractedOriginalJson, Files.extracted) : existsSync(paths.extractedJson) ? readData(paths.extractedJson, Files.extracted) : null;
+      if (engineOf(ex?.madeBy) !== want) return;
+    }
     const c = readData(paths.correctionsJson, Files.corrections);
     q.sources++;
     q.originalChars += c.originalChars;
@@ -51,7 +64,8 @@ function addCorrections(q: ReadingQuality, paths: SourcePaths): void {
   }
 }
 
-export function getQuality(core: AppCore): Quality {
+/** 品質の数。want を渡すと、そのエンジンで作ったものだけを数える。 */
+function computeQuality(core: AppCore, want: EngineId | null): Quality {
   const verify = { tests: 0, adopted: 0, regenerated: 0, discarded: 0 };
   const problems: ReadingQuality = { sources: 0, originalChars: 0, changedChars: 0, edits: 0, rate: null };
   const answers: ReadingQuality = { sources: 0, originalChars: 0, changedChars: 0, edits: 0, rate: null };
@@ -60,7 +74,7 @@ export function getQuality(core: AppCore): Quality {
   for (const p of listProjects(core).projects) {
     for (const s of p.subjects) {
       const sp = core.paths(p.id).subject(s.id);
-      for (const src of listSources(core, p.id, s.id)) addCorrections(problems, sp.source(src.id));
+      for (const src of listSources(core, p.id, s.id)) addCorrections(problems, sp.source(src.id), want);
       // 教材: 点検の記録(章ごとの review/<単元ID>.json)。例題の検算の数は、検算の合計に足す
       const reviewDir = join(sp.textbook.root, 'review');
       for (const name of existsSync(reviewDir) ? readdirSync(reviewDir) : []) {
@@ -69,6 +83,7 @@ export function getQuality(core: AppCore): Quality {
           const r = readData(join(reviewDir, name), Files.chapterReview);
           textbook.chapters++;
           for (const rec of r.records) {
+            if (want && engineOf(rec.madeBy) !== want) continue;
             textbook.reviews++;
             textbook.issues += rec.issues.length;
             if (rec.issues.length > 0) textbook.withIssues++;
@@ -85,16 +100,16 @@ export function getQuality(core: AppCore): Quality {
       }
       for (const t of listTests(core, p.id, s.id)) {
         const v = getVerify(core, p.id, s.id, t.id);
-        if (v) {
+        if (v && (!want || engineOf(v.madeBy) === want)) {
           verify.tests++;
           verify.adopted += v.counts.adopted;
           verify.regenerated += v.counts.regenerated;
           verify.discarded += v.counts.discarded;
         }
-        addCorrections(answers, sp.test(t.id).submission);
+        addCorrections(answers, sp.test(t.id).submission, want);
         try {
           const g = getGrading(core, p.id, s.id, t.id);
-          if (g) {
+          if (g && (!want || engineOf(g.madeBy) === want)) {
             grading.tests++;
             grading.items += g.items.length;
             grading.overridden += g.items.filter((i) => i.override).length;
@@ -115,4 +130,12 @@ export function getQuality(core: AppCore): Quality {
     grading: { ...grading, rate: pct(grading.overridden, grading.items) },
     textbook,
   };
+}
+
+const hasData = (q: Quality): boolean => q.verify.total > 0 || q.problems.sources > 0 || q.answers.sources > 0 || q.grading.items > 0 || q.textbook.reviews > 0;
+
+export function getQuality(core: AppCore): QualityReport {
+  const all = computeQuality(core, null);
+  const byEngine = ENGINE_IDS.map((engine) => ({ engine, quality: computeQuality(core, engine) })).filter((e) => hasData(e.quality));
+  return { ...all, byEngine };
 }

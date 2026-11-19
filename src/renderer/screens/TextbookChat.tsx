@@ -1,3 +1,4 @@
+import { madeByLabel } from '../../shared/engines';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChatView } from '../../core/teach';
 import { api, errorMessage } from '../api';
@@ -142,7 +143,7 @@ export function TextbookChat({ projectId, subjectId, chapterUnitId, quote = null
       <div data-testid="tchat-thread">
         {messages.map((m, i) => (
           <div key={i} className={`chat-msg ${m.role}`} data-testid="tchat-msg" data-role={m.role}>
-            <div className="chat-who">{m.role === 'user' ? 'あなた' : 'Claude'}</div>
+            <div className="chat-who">{m.role === 'user' ? 'あなた' : m.madeBy ? madeByLabel(m.madeBy) : 'Claude'}</div>
             {m.quote && <div className="chat-quote">{m.quote}</div>}
             {m.role === 'user' ? <div className="chat-text">{m.text}</div> : <Md text={m.text} />}
           </div>

@@ -172,7 +172,7 @@ export async function createPlan(core: AppCore, projectId: string, reason: strin
   const chapterIds = new Map(subjects.map((s) => [s.id, new Set(s.textbook.chapterIds)]));
   const progress = previous ? { ...progressOf(previous, today, activeDays(core, project)), reason: reason || '計画の見直し', previousAdvice: previous.advice.slice(0, 600) } : null;
 
-  ctx.progress(`Claude が ${weeks.length} 週ぶんの学習計画を作っています`);
+  ctx.progress(`${core.who('plan', projectId)} が ${weeks.length} 週ぶんの学習計画を作っています`);
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'plan',

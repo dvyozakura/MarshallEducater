@@ -647,3 +647,8 @@ table.grid td.miss { font-weight: 700; color: var(--low); background: #fff5f5; }
 .chapter-chat .chat-input { flex-direction: column; align-items: stretch; }
 .chat-quote { border-left: 3px solid #c79a1b; background: #fffaf0; padding: 4px 8px; margin: 4px 0; font-size: 12px; white-space: pre-wrap; max-height: 120px; overflow: auto; }
 .select-ask { position: fixed; z-index: 20; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+
+/* どのエンジンで作ったかの小さな印 */
+.madeby { display: inline-block; font-size: 11px; color: #667; border: 1px solid #ccd; border-radius: 8px; padding: 0 6px; margin-left: 4px; }
+fieldset.engine-config { border: 1px solid #dde; border-radius: 6px; margin: 6px 0; padding: 4px 8px; }
+ul.plain { list-style: none; padding-left: 0; }

@@ -4,7 +4,7 @@ import { splitFigures } from '../../shared/chapter';
 import { choiceMark } from '../../shared/labels';
 import { CHAPTER_STATUS_LABEL, DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, THICKNESS_LABEL, type ChapterExample, type ChapterFigure } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, SvgFigure } from '../components';
+import { ErrorBox, Md, SvgFigure, MadeByTag } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 import { PdfButtons } from './subject/TestsTab';
@@ -241,7 +241,7 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
               第 {ch.chapterVersion} 版({ch.updatedAt.slice(0, 10)})・厚さ: {THICKNESS_LABEL[ch.thickness]}
               {ch.unlearned ? '・未習の単元として作成' : ''}
               {ch.masteryAtBuild !== null ? `・作成時の習熟度 ${ch.masteryAtBuild}` : ''}
-              {view.versions.length > 0 ? `・前の版 ${view.versions.length} つを保存` : ''}
+              {view.versions.length > 0 ? `・前の版 ${view.versions.length} つを保存` : ''} <MadeByTag madeBy={ch.madeBy} what="作成" testId="madeby-chapter" />
             </div>
 
             <h2>導入</h2>

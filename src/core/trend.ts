@@ -79,7 +79,7 @@ export async function updateTrend(core: AppCore, projectId: string, subjectId: s
   const tree = getUnits(core, projectId, subjectId).tree;
   const names = unitNameMap(tree);
   const previous = getTrend(core, projectId, subjectId);
-  ctx.progress(`Claude が過去問 ${sources.length} 件から傾向をまとめています`);
+  ctx.progress(`${core.who('trend', projectId)} が過去問 ${sources.length} 件から傾向をまとめています`);
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'trend',

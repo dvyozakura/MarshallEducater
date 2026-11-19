@@ -82,7 +82,7 @@ export async function adjustUnits(core: AppCore, projectId: string, subjectId: s
   const sp = core.paths(projectId).subject(subjectId);
   const current = getUnits(core, projectId, subjectId);
   const trend = existsSync(sp.trendJson) ? readData(sp.trendJson, Files.trend) : null;
-  ctx.progress('Claude が単元を見直しています');
+  ctx.progress(`${core.who('adjust_units', projectId)} が単元を見直しています`);
   const r = await callClaude({
     projectDir: core.projectDir(projectId),
     kind: 'adjust_units',

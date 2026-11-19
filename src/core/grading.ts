@@ -1,4 +1,5 @@
 // 採点。確定した答案を、解答・採点基準に照らして Claude が採点する。ユーザーは結果を上書きでき、上書きは記録する。
+import type { MadeBy } from '../shared/engines';
 import { existsSync } from 'node:fs';
 import { FORMAT_VERSION, GradeOutputSchema, type AnswerKey, type Explanations, type GradeItem, type Grading, type MistakeType, type Reading, type Test } from '../shared/schema';
 import { requireConfirmedReading } from './answers';
@@ -53,9 +54,10 @@ export async function gradeTest(core: AppCore, projectId: string, subjectId: str
   const overTime = reading.elapsedSec !== null && reading.elapsedSec >= test.timeLimitMin * 60;
 
   const toGrade = test.problems.filter((p) => answerOf(p.id) !== '');
+  let madeBy: MadeBy | null = null;
   const graded = new Map<string, { score: number; rationale: string; mistake: MistakeType | null; comment: string }>();
   if (toGrade.length > 0) {
-    ctx.progress(`Claude が採点しています(${toGrade.length} 問)`);
+    ctx.progress(`${core.who('grade', projectId)} が採点しています(${toGrade.length} 問)`);
     const r = await callClaude({
       projectDir: core.projectDir(projectId),
       kind: 'grade',
@@ -93,6 +95,7 @@ export async function gradeTest(core: AppCore, projectId: string, subjectId: str
         return null;
       },
     });
+    madeBy = r.madeBy;
     for (const p of toGrade) {
       const g = r.data.items.find((i) => i.problemId === p.id)!;
       let score = g.score;
@@ -116,7 +119,7 @@ export async function gradeTest(core: AppCore, projectId: string, subjectId: str
     };
     return { problemId: p.id, ...g, max: p.points, unitId: p.unitId, unitName: p.unitName, difficulty: p.difficulty, override: null };
   });
-  const grading = writeData(tp.gradingJson, Files.grading, { version: FORMAT_VERSION, testId, gradedAt: new Date().toISOString(), items, overrides: [] });
+  const grading = writeData(tp.gradingJson, Files.grading, { version: FORMAT_VERSION, testId, gradedAt: new Date().toISOString(), items, overrides: [], madeBy });
   const done: Test = writeData(tp.testJson, Files.test, { ...test, status: 'graded' as const });
   runHooks(core, projectId, subjectId, done, grading);
   return grading;
