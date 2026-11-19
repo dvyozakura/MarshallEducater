@@ -4,7 +4,7 @@ import { formatElapsed } from '../../shared/dates';
 import { choiceMark } from '../../shared/labels';
 import { DIFFICULTY_LABEL, MISTAKE_LABEL, PROBLEM_FORMAT_LABEL, TEST_STATUS_LABEL, type GradeItem, type Problem } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, Section, SvgFigure, MadeByTag } from '../components';
+import { ErrorBox, Md, Section, SvgFigure, MadeByTag, useVertical } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 
@@ -58,6 +58,8 @@ function OverrideForm({ item, onSave }: { item: GradeItem; onSave: (score: numbe
 /** 採点結果と解説の画面。 */
 export function Result({ projectId, subjectId, testId }: { projectId: string; subjectId: string; testId: string }) {
   const nav = useNav();
+  // 国語: 問題文の引用は縦書き、所見・解説は横書き
+  const vertical = useVertical(projectId, subjectId);
   const [view, setView] = useState<ResultView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { jobs } = useJobs();
@@ -220,13 +222,13 @@ export function Result({ projectId, subjectId, testId }: { projectId: string; su
                     </span>
                   )}
                 </div>
-                <Md text={p.body} />
+                <Md text={p.body} vertical={vertical} height="min(45vh, 340px)" testId="item-body" />
                 <SvgFigure svg={p.figureSvg} />
                 {p.choices.length > 0 && (
-                  <ol className="choices plain">
+                  <ol className={vertical ? 'choices plain tate-choice-list' : 'choices plain'}>
                     {p.choices.map((c, i) => (
                       <li key={i}>
-                        <span>{choiceMark(i)}</span> <Md text={c} />
+                        <span>{choiceMark(i)}</span> <Md text={c} verticalInline={vertical} />
                       </li>
                     ))}
                   </ol>

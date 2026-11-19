@@ -661,8 +661,11 @@ ul.plain { list-style: none; padding-left: 0; }
   overflow-y: hidden;
   height: 30em;
   max-height: 72vh;
-  width: 100%;
+  /* 中身の幅に合わせ、右に寄せる(縦書きは右から読み始める) */
+  width: fit-content;
+  min-width: 8em;
   max-width: 100%;
+  margin-left: auto;
   font-family: 'Yu Mincho', 'YuMincho', '游明朝', 'MS Mincho', 'Hiragino Mincho ProN', serif;
   line-height: 1.95;
   line-break: strict;
@@ -724,6 +727,8 @@ ul.plain { list-style: none; padding-left: 0; }
 .take-choices.tate-choices { display: flex; flex-direction: row-reverse; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: flex-start; }
 .tate-choices .take-choice { display: flex; flex-direction: column; align-items: center; gap: 4px; max-height: 360px; padding: 6px 4px; }
 .tate-choices .take-choice .md { max-height: 320px; }
+.tate-choice-list { display: flex; flex-direction: row-reverse; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.tate-choice-list li { display: flex; flex-direction: column; align-items: center; gap: 4px; max-height: 320px; }
 .split-v { display: flex; flex-direction: column; gap: 8px; }
 .split-v textarea { width: 100%; box-sizing: border-box; }
 .notation-buttons { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 4px 0; }

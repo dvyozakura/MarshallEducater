@@ -4,7 +4,7 @@ import { splitFigures } from '../../shared/chapter';
 import { choiceMark } from '../../shared/labels';
 import { CHAPTER_STATUS_LABEL, DIFFICULTY_LABEL, PROBLEM_FORMAT_LABEL, THICKNESS_LABEL, type ChapterExample, type ChapterFigure } from '../../shared/schema';
 import { api, errorMessage } from '../api';
-import { ErrorBox, Md, SvgFigure, MadeByTag } from '../components';
+import { ErrorBox, Md, SvgFigure, MadeByTag, TateFontControl, useVertical } from '../components';
 import { JobRow, useJobs } from '../jobs';
 import { useNav } from '../nav';
 import { PdfButtons } from './subject/TestsTab';
@@ -12,13 +12,13 @@ import { quizLabel } from './subject/TextbookTab';
 import { TextbookChat } from './TextbookChat';
 
 /** 章の本文(文章の途中に、図を置く)。 */
-function Body({ text, figures, testId }: { text: string; figures: ChapterFigure[]; testId?: string }) {
+function Body({ text, figures, testId, vertical }: { text: string; figures: ChapterFigure[]; testId?: string; vertical?: boolean }) {
   const parts = useMemo(() => splitFigures(text, figures), [text, figures]);
   return (
     <div data-testid={testId}>
       {parts.map((p, i) =>
         p.type === 'text' ? (
-          <Md key={i} text={p.text} />
+          <Md key={i} text={p.text} vertical={vertical} height="min(60vh, 460px)" />
         ) : (
           <figure key={i} className="chapter-figure" data-testid="chapter-figure">
             <SvgFigure svg={p.figure.svg} />
@@ -63,13 +63,13 @@ function exampleAnswer(e: ChapterExample): string {
   return Number.isFinite(n) && e.choices[n - 1] !== undefined ? `${choiceMark(n - 1)} ${e.choices[n - 1]}` : e.answer;
 }
 
-function Choices({ choices }: { choices: string[] }) {
+function Choices({ choices, vertical }: { choices: string[]; vertical?: boolean }) {
   if (choices.length === 0) return null;
   return (
-    <ol className="choices plain">
+    <ol className={vertical ? 'choices plain tate-choice-list' : 'choices plain'}>
       {choices.map((c, i) => (
         <li key={i}>
-          <span>{choiceMark(i)}</span> <Md text={c} />
+          <span>{choiceMark(i)}</span> <Md text={c} verticalInline={vertical} />
         </li>
       ))}
     </ol>
@@ -79,6 +79,7 @@ function Choices({ choices }: { choices: string[] }) {
 /** 章を読む画面。導入 → 要点 → 例題 → よくある誤り →(補足)→ 確認問題。前後の章への移動、既読、PDF 出力。 */
 export function Chapter({ projectId, subjectId, unitId }: { projectId: string; subjectId: string; unitId: string }) {
   const nav = useNav();
+  const vertical = useVertical(projectId, subjectId);
   const [view, setView] = useState<ChapterView | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -184,6 +185,7 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
           {view.next ? `第${view.next.no}章 ${view.next.name}` : '次の章はありません'} →
         </button>
         <span className="spacer" />
+        {vertical && ch && <TateFontControl />}
         {ch && (
           <>
             <button className={row.read ? '' : 'primary'} data-testid="chapter-read" onClick={() => act(() => api.setChapterRead(projectId, subjectId, unitId, !row.read))}>
@@ -245,10 +247,10 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
             </div>
 
             <h2>導入</h2>
-            <Body text={ch.intro} figures={ch.figures} testId="chapter-intro" />
+            <Body text={ch.intro} figures={ch.figures} testId="chapter-intro" vertical={vertical} />
 
             <h2>要点</h2>
-            <Body text={ch.points} figures={ch.figures} testId="chapter-points" />
+            <Body text={ch.points} figures={ch.figures} testId="chapter-points" vertical={vertical} />
 
             <h2>例題</h2>
             {ch.examples.map((e, i) => (
@@ -260,9 +262,9 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
                   </span>
                 </div>
                 {e.focus.trim() && <div className="hint">ねらい: {e.focus}</div>}
-                <Md text={e.body} />
+                <Md text={e.body} vertical={vertical} height="min(50vh, 380px)" />
                 <SvgFigure svg={e.figureSvg} />
-                <Choices choices={e.choices} />
+                <Choices choices={e.choices} vertical={vertical} />
                 <div className="explanation">
                   <h3>解答</h3>
                   <Md text={exampleAnswer(e)} />
@@ -273,7 +275,7 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
             ))}
 
             <h2>よくある誤り</h2>
-            <Body text={ch.pitfalls} figures={ch.figures} testId="chapter-pitfalls" />
+            <Body text={ch.pitfalls} figures={ch.figures} testId="chapter-pitfalls" vertical={vertical} />
 
             {ch.supplements.length > 0 && (
               <>
@@ -281,7 +283,7 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
                 {ch.supplements.map((s, i) => (
                   <div key={i} className="chapter-supplement" data-testid="chapter-supplement">
                     <h3>{s.title}</h3>
-                    <Md text={s.markdown} />
+                    <Md text={s.markdown} vertical={vertical} height="min(50vh, 380px)" />
                     <div className="muted">{s.at.slice(0, 10)} に追記</div>
                   </div>
                 ))}
@@ -305,9 +307,9 @@ export function Chapter({ projectId, subjectId, unitId }: { projectId: string; s
                     ({DIFFICULTY_LABEL[q.difficulty]}・{PROBLEM_FORMAT_LABEL[q.format]}・{q.points} 点)
                   </span>
                 </div>
-                <Md text={q.body} />
+                <Md text={q.body} vertical={vertical} height="min(50vh, 380px)" />
                 <SvgFigure svg={q.figureSvg} />
-                <Choices choices={q.choices} />
+                <Choices choices={q.choices} vertical={vertical} />
               </div>
             ))}
             {quizAt && row.quiz && (

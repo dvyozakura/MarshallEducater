@@ -384,8 +384,28 @@ function chat({ input }) {
  * 教材の章の本文: 導入・要点・よくある誤り・例題のねらい。渡された条件(厚さ・未習・苦手・傾向・前後の章・作り直し)が分かる文を返す。
  * モード with_figure は図を1つ付ける。bad_figure は崩れた図を付ける。
  */
-function chapterBody({ input, mode }) {
+function chapterBody({ input, mode, prompt }) {
   const s = input.spec;
+  // 国語(縦書き): 記法を含む自作の本文
+  if ((prompt ?? '').includes('ME_TATEGAKI: write')) {
+    return {
+      intro: `第${input.chapter.no}章では「${input.chapter.unitName}」を学びます。{{段落:1}}文章は、{{傍線:ア|言いかえ}}と{{傍点|対比}}で組み立てられている。`,
+      points: [
+        '### 要点',
+        '',
+        '{{段落:1}}筆者は、同じことを{言葉|ことば}を変えて{{波線:a|くり返し}}述べる。これを「言いかえ」という。',
+        '',
+        '{{段落:2}}{{空欄:A}}には、前後の文をつなぐ語が入る。2つの段落を比べて考える。',
+        '',
+        ':::漢文 訓読文',
+        '夜[_ニ]登[_ル][^レ]楼[_ニ]。',
+        ':::',
+      ].join('\n'),
+      pitfalls: '- 傍線部の{{傍点|前後}}だけを読んで答えてしまう。',
+      exampleFocus: s.examples.map((e, i) => `例題${i + 1}(${e.difficulty})のねらい`),
+      figures: [],
+    };
+  }
   const figures = [];
   if (mode === 'with_figure') figures.push({ id: 'fig1', svg: FAKE_SVG, caption: '直角三角形の図' });
   if (mode === 'bad_figure') figures.push({ id: 'fig1', svg: '<svg><script>alert(1)</script></svg>', caption: '崩れた図' });
