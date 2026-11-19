@@ -91,8 +91,10 @@ export function scanRepo() {
     } catch {
       continue; // 消したがまだコミットしていないファイルなど
     }
-    // THIRD_PARTY_NOTICES.md は、ほかの人のライセンスの本文(作者の公開のメールを含む)をそのまま写したもの
-    for (const issue of findIssues(text, words, { allowEmails: f === 'THIRD_PARTY_NOTICES.md' })) found.push({ file: f, ...issue });
+    // THIRD_PARTY_NOTICES.md は、ほかの人のライセンスの本文(作者の公開のメールを含む)をそのまま写したもの。
+    // package-lock.json の中のメールは、npm のパッケージの作者の公開の情報(依存の記録)
+    const thirdParty = f === 'THIRD_PARTY_NOTICES.md' || f === 'package-lock.json';
+    for (const issue of findIssues(text, words, { allowEmails: thirdParty })) found.push({ file: f, ...issue });
   }
   return { files: files.length, found };
 }
