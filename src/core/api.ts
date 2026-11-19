@@ -4,6 +4,7 @@ import { resolve, sep } from 'node:path';
 import { todayString } from '../shared/dates';
 import { ENGINE_CAPS, ENGINE_IDS, ENGINE_LABEL, ENGINE_ROLES, ENGINE_SHORT, KIND_ROLE, type EngineAssign, type EngineId, type EngineRole } from '../shared/engines';
 import { checkEngine } from './engine_check';
+import { locateEngine } from './claude/engines';
 import type { JobInfo } from '../shared/jobs';
 import { PingOutputSchema, type AppSettings, type ChatContext, type ProjectInput, type UnitNode } from '../shared/schema';
 import { findUnit, SUBJECT_PRESETS } from '../shared/subjects';
@@ -237,6 +238,8 @@ export function createApi(core: AppCore) {
           label: ENGINE_LABEL[engine],
           caps: ENGINE_CAPS[engine],
           status: s.engineStatus.find((x) => x.engine === engine) ?? { engine, status: 'unchecked' as const, version: '', message: '', checkedAt: null },
+          /** コマンドの場所(見つかった場所と、探した場所)。偽エンジンのときは null。 */
+          location: process.env.ME_FAKE_CLAUDE === '1' ? null : locateEngine(engine, core.engineSettings(engine).claudePath, { ...process.env }),
         })),
         /** いまの設定で、役割ごとに実際に使うエンジン(プロジェクトを渡せば、その上書きも含めて)。 */
         resolved: ENGINE_ROLES.map((role) => ({ role, ...core.resolveEngineFor(roleKind(role), dir) })),

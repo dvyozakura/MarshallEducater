@@ -190,7 +190,7 @@ export async function callClaude<T>(c: StructuredCall<T>): Promise<StructuredRes
       callId,
       kind: c.kind,
       engine,
-      model: madeBy.model,
+      model: madeBy.model || run.model || '',
       ...(sel.note ? { engineNote: sel.note } : {}),
       attempt,
       startedAt,
@@ -216,7 +216,8 @@ export async function callClaude<T>(c: StructuredCall<T>): Promise<StructuredRes
     if (v.ok) {
       writeLog(c.projectDir, callId, c.kind, attempt, { ...base, outcome: 'ok', output: v.data });
       rmSync(ioDir, { recursive: true, force: true });
-      return { data: v.data, attempts: attempt, sessionId: run.sessionId, callId, madeBy };
+      // モデルを指定していないときは、エンジンが知らせた実際のモデルを記録する(Codex の既定のモデルなど)
+      return { data: v.data, attempts: attempt, sessionId: run.sessionId, callId, madeBy: madeBy.model ? madeBy : { ...madeBy, model: run.model ?? '' } };
     }
     const rawOutput = existsSync(outputFile) ? readFileSync(outputFile, 'utf8').slice(0, 20000) : null;
     writeLog(c.projectDir, callId, c.kind, attempt, { ...base, outcome: 'invalid_output', validationError: v.error, rawOutput });

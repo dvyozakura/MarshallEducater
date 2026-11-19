@@ -5,5 +5,5 @@
 3. (方針の確認)今日の課題は「1日の時間 ÷ 45 分」の数の科目(最大 3)を日替わりで回し、1科目 3〜8 問にしています。実際に使ってみて多い・少ないがあれば教えてください(数値は DECISIONS.md「今日の課題」)。
 5. 【対応済み(セッション2 項目7)】CLAUDE.md の「ほかの AI との接続」は、NEXT_SESSION.md の項目7として実装しました。人が変更した CLAUDE.md・NEXT_SESSION.md・overnight.ps1 は、中身を変えずに項目7のコミットに含めました。
 6. (方針の確認)Gemini CLI は、公式の README によると 2026-06-18 から個人の Google アカウント(無料・Google AI Pro/Ultra)では使えなくなり、Antigravity CLI(`agy`)に移ったそうです。仕様どおり Gemini CLI で実装しましたが(有料の Code Assist のライセンスなどがあれば動くはず)、個人のアカウントでは「ログインしていません」になる見込みです。Antigravity CLI にも対応しますか(仕様の変更になるので、CLAUDE.md の書き換えが必要です)。
-7. (確認)Codex CLI・Gemini CLI はこの PC に入っていないため、本物での確認(smoke_real --engines)は「未導入」で飛ばしました。入れてログインしてから `./Tools/smoke_real.sh --engines` を1回実行すると、エンジンごとに呼び出し2回で確認できます。特に Codex は「シェルのツールを切る設定(`-c features.shell_tool=false`)」と「画像の添付(`-i`)」が実際に効くかを確かめたいです。
-4. (急ぎではない)配布用のアプリにアイコンがありません(Electron の既定のまま)。使いたい画像があれば `build/icon.ico` のような形で置いてもらえれば組み込みます。
+7. 【対応済み(セッション3 項目8)】Codex CLI は `%APPDATA%\npm` に入っていた(探し方の問題。PATH に無いときも探すように直し、smoke_real --engines --codex を本物で1回通した)。Gemini は今回は扱っていない。以下は元の文: Codex CLI・Gemini CLI はこの PC に入っていないため、本物での確認(smoke_real --engines)は「未導入」で飛ばしました。入れてログインしてから `./Tools/smoke_real.sh --engines` を1回実行すると、エンジンごとに呼び出し2回で確認できます。特に Codex は「シェルのツールを切る設定(`-c features.shell_tool=false`)」と「画像の添付(`-i`)」が実際に効くかを確かめたいです。
+4. 【対応済み(セッション3 項目7)】配布用のアプリにアイコンがありません(Electron の既定のまま)。使いたい画像があれば `build/icon.ico` のような形で置いてもらえれば組み込みます。

@@ -112,6 +112,13 @@ export function EngineSettingsSection({ settings, set, savedCount }: { settings:
                     </span>
                   )}
                   {e.status.status !== 'ok' && e.status.status !== 'unchecked' && e.status.message && <div className="hint">{e.status.message}</div>}
+                  {e.location && (
+                    <div className="hint" data-testid={`engine-location-${e.engine}`}>
+                      {e.location.path ? `場所: ${e.location.path}` : '見つかりません。下の「場所」に実行ファイル(.exe / .cmd)の場所を入れてください。'}
+                      {!e.location.path && <details><summary>探した場所</summary>{e.location.tried.map((t) => <div key={t}>{t}</div>)}</details>}
+                      {e.location.configHome && <span> ・ 設定フォルダ {e.location.configHome} あり</span>}
+                    </div>
+                  )}
                   {!e.caps.images && <div className="hint">画像を読めないので、読み取りには使えません。</div>}
                   {!e.caps.resume && <div className="hint">会話の続きは、これまでのやりとりをプロンプトに入れて代用します。</div>}
                 </td>

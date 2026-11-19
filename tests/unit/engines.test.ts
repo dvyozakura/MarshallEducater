@@ -194,6 +194,13 @@ describe('偽エンジンでの呼び出し', () => {
     expect(log.model).toBe('gpt-test');
   });
 
+  it('ChatGPT でモデルを指定しないときは、Codex が知らせた実際のモデルを記録する', async () => {
+    const { t, p } = setup();
+    t.core.updateSettings({ defaultEngine: 'codex', engines: { ...t.core.getSettings().engines, codex: { path: '', model: '', dailyLimit: 200 } } });
+    const r = await callClaude({ projectDir: t.core.projectDir(p.id), kind: 'ping', vars: { note: '' }, input: { x: 1 }, schema: PingSchema, env: t.core.claudeEnv() });
+    expect(r.madeBy).toEqual({ engine: 'codex', model: 'gpt-fake-default' });
+  });
+
   it('Gemini: コードブロックつきの返答でも取り出せる。壊れた JSON はエラー内容を添えてやり直す', async () => {
     const { t, p, engines } = setup({ fenceReply: true, kinds: { ping: ['broken', 'ok'] } });
     t.core.updateSettings({ defaultEngine: 'gemini' });

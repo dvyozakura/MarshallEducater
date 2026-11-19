@@ -343,3 +343,11 @@ Markdown の拡張記法として次の1つに決めた。読み取りは `src/s
 - 配布用の exe: `@electron/packager` の `icon` に `build/icon.ico` を渡して埋め込む。
 - ウィンドウの左上・タスクバー: ビルド時に `out/icon.ico`・`out/icon.png` へ写し、`BrowserWindow` の `icon` に指定(Windows は .ico)。開発時の起動(`npm start`)でも同じファイルを使う。タスクバーでまとめるため `app.setAppUserModelId('MarshallEducater')`。
 - 確認: `scripts/check-dist.mjs` が exe のリソースのアイコンを読み、`build/icon.ico` の 7 枚とすべて同じかを調べる(`resedit`。packager がアイコンの書き込みに使っているライブラリで、新しい依存は足していない)。Electron の既定の exe では一致しないことも確かめた。Windows の `app.getFileIcon` は汎用のアイコンを返すことがあり、確認には使えなかった。
+
+## ChatGPT(Codex CLI)の探し方(セッション3 項目8)
+- この PC では Codex CLI 0.170.0 が `%APPDATA%\npm\codex.cmd`(本体は `node_modules\@openai\codex\bin\codex.js`)に入っていて、`~/.codex` もあった。今の環境ではこの場所が PATH に入っており、今までの探し方でも見つかる。前のセッションで「入っていない」になったのは、そのときアプリ・テストを動かした環境の PATH にこの場所が無かった(または後から入れた)ためと考えられる(確かめられない)。
+- 探し方を広げた(`locateEngine` / `findCommand`、`src/core/claude/engines.ts`): ①設定の「場所」(手で指定。ファイルが無ければ使わない) → ②PATH(Windows は .exe → .cmd → .bat) → ③PATH に無くても、ユーザー単位で入れたときの置き場所: `%APPDATA%\npm`、`npm_config_prefix`、`~\.local\bin`、`%LOCALAPPDATA%\pnpm`、`~\.bun\bin`、`%LOCALAPPDATA%\Volta\bin`、`~\scoop\shims`、`%LOCALAPPDATA%\Microsoft\WinGet\Links`、`%LOCALAPPDATA%\Microsoft\WindowsApps`、`C:\Program Files\nodejs`。エクスプローラーやスタートメニューから起動したアプリには、ターミナルで足した PATH が入っていないことがあるため。
+- 設定画面の「教員エンジン」に、見つかった場所(見つからなければ「探した場所」の一覧)と、設定フォルダ(`~/.codex` など)の有無を出す。
+- `Tools/setup.sh` に Codex の任意の点検(Git Bash の PATH に無くても `%APPDATA%\npm\codex.cmd` を見る。無くても NG にはしない)。
+- モデルを指定しないと Codex の既定のモデルで動く(この PC では `gpt-6.2-sol`)。Codex は標準エラーの最初に `model: …` を出すので、それを読んで作ったもの・記録のモデルに残す(指定したときは指定したモデル)。
+- smoke_real に `--codex`(`--engines` と一緒に使い、Gemini は飛ばす)。

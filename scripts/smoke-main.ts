@@ -89,7 +89,9 @@ async function textbookCheck(core: AppCore, projectId: string, sid: string, ctx:
  */
 async function enginesCheck(core: AppCore, projectId: string, sid: string, unitId: string, ctx: JobContext, warnings: string[]): Promise<void> {
   let n = 2;
-  for (const engine of ['codex', 'gemini'] as const satisfies readonly EngineId[]) {
+  // --codex: ChatGPT だけを確かめる(Gemini は飛ばす)
+  const list: readonly EngineId[] = process.argv.includes('--codex') ? ['codex'] : ['codex', 'gemini'];
+  for (const engine of list as ('codex' | 'gemini')[]) {
     say(`${n++}. ${ENGINE_LABEL[engine]}`);
     const version = engineVersion(core, engine);
     if (version === null) {

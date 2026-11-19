@@ -98,6 +98,9 @@ function inlineInput(prompt) {
 
 function engineFinish(engine, { reply, code = 0, stderr = '', geminiError = null }) {
   if (engine === 'codex') {
+    // 本物と同じく、最初に設定の見出し(モデルなど)を標準エラーに出す
+    const mi = argv.indexOf('-m');
+    process.stderr.write(`OpenAI Codex v0.0.0 (fake)\n--------\nmodel: ${mi >= 0 ? argv[mi + 1] : 'gpt-fake-default'}\n--------\n`);
     const oi = argv.indexOf('-o');
     if (code === 0 && oi >= 0 && argv[oi + 1]) writeFileSync(argv[oi + 1], reply, 'utf8');
     if (stderr) process.stderr.write(stderr + '\n');

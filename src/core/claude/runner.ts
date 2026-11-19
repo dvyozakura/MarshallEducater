@@ -42,6 +42,8 @@ export interface RunResult {
   /** 最後の返答文。 */
   resultText?: string;
   sessionId?: string;
+  /** エンジンが知らせた実際のモデル(分かるときだけ。Codex の既定のモデルなど)。 */
+  model?: string;
   durationMs: number;
   command: string;
 }
@@ -130,6 +132,8 @@ interface Parsed {
   ok: boolean;
   resultText?: string;
   sessionId?: string;
+  /** エンジンが知らせた実際のモデル(分かるときだけ)。 */
+  model?: string;
   /** 失敗のときに見分けに使う文。 */
   detail: string;
 }
@@ -143,7 +147,9 @@ function parseOutput(engine: EngineId, code: number | null, stdout: string, stde
       rmSync(lastMessageFile, { force: true });
     }
     const resultText = last ?? (stdout.trim() || undefined);
-    return { ok: code === 0, resultText, detail: [stderr, stdout].join('\n').trim() };
+    // Codex は最初に「model: gpt-…」を標準エラーに出す。モデルを指定しなかったときの記録に使う
+    const model = stderr.match(/^model:\s*(\S+)\s*$/m)?.[1];
+    return { ok: code === 0, resultText, model, detail: [stderr, stdout].join('\n').trim() };
   }
   if (engine === 'gemini') {
     const g = parseGeminiJson(stdout);
@@ -230,7 +236,7 @@ export function runClaude(opts: RunOptions): Promise<RunResult> {
       }
       const p = parseOutput(engine, code, stdout, stderr, opts.lastMessageFile);
       if (p.ok) {
-        finish({ ok: true, exitCode: code, resultText: p.resultText, sessionId: p.sessionId });
+        finish({ ok: true, exitCode: code, resultText: p.resultText, sessionId: p.sessionId, model: p.model });
         return;
       }
       finish({
