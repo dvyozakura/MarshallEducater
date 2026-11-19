@@ -5,6 +5,10 @@
   "description": "Claude を教員にする Windows デスクトップアプリ",
   "license": "MIT",
   "author": "ururuzawa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dvyozakura/MarshallEducater.git"
+  },
   "private": true,
   "main": "out/main/index.js",
   "scripts": {

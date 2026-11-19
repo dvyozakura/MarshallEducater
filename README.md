@@ -39,7 +39,7 @@
 
 ### インストーラ(おすすめ)
 
-1. GitHub の Releases から `MarshallEducater-Setup-<版>.exe` をダウンロードして実行します。
+1. GitHub の [Releases](https://github.com/dvyozakura/MarshallEducater/releases) から `MarshallEducater-Setup-<版>.exe` をダウンロードして実行します。
 2. 管理者の権限は要りません(ユーザーごとに入ります)。入れる場所を選べ、スタートメニューとデスクトップにショートカットができます。
 3. **初回は Windows の警告(「Windows によって PC が保護されました」)が出ます。** このアプリはコード署名をしていないためです。「詳細情報」→「実行」で進めます。心配な場合は、下の「ソースから」でビルドしてください。
 4. アンインストールは「設定 → アプリ」から。**学習データ(ドキュメント/MarshallEducaterData)は消えません。** 上書きインストール(新しい版を入れる)でも、設定とデータはそのまま残ります。
@@ -47,7 +47,7 @@
 ### ソースから
 
 ```bash
-git clone <このリポジトリの URL>
+git clone https://github.com/dvyozakura/MarshallEducater.git
 cd MarshallEducater
 ./Tools/setup.sh        # 依存の導入と、node・git・claude(と任意の codex)の点検
 npm start               # ビルドして起動
