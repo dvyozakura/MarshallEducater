@@ -7,3 +7,8 @@
 6. (方針の確認)Gemini CLI は、公式の README によると 2026-06-18 から個人の Google アカウント(無料・Google AI Pro/Ultra)では使えなくなり、Antigravity CLI(`agy`)に移ったそうです。仕様どおり Gemini CLI で実装しましたが(有料の Code Assist のライセンスなどがあれば動くはず)、個人のアカウントでは「ログインしていません」になる見込みです。Antigravity CLI にも対応しますか(仕様の変更になるので、CLAUDE.md の書き換えが必要です)。
 7. 【対応済み(セッション3 項目8)】Codex CLI は `%APPDATA%\npm` に入っていた(探し方の問題。PATH に無いときも探すように直し、smoke_real --engines --codex を本物で1回通した)。Gemini は今回は扱っていない。以下は元の文: Codex CLI・Gemini CLI はこの PC に入っていないため、本物での確認(smoke_real --engines)は「未導入」で飛ばしました。入れてログインしてから `./Tools/smoke_real.sh --engines` を1回実行すると、エンジンごとに呼び出し2回で確認できます。特に Codex は「シェルのツールを切る設定(`-c features.shell_tool=false`)」と「画像の添付(`-i`)」が実際に効くかを確かめたいです。
 4. 【対応済み(セッション3 項目7)】配布用のアプリにアイコンがありません(Electron の既定のまま)。使いたい画像があれば `build/icon.ico` のような形で置いてもらえれば組み込みます。
+8. (公開前に判断してください。セッション3 項目9)git の履歴は書き換えていません。`node scripts/check-history.mjs`(npm run check:history)の結果:
+   - (a) コミットの作者・コミッター(重複なし): 1 件のみ(`<git の作者名> <作者の Gmail アドレス>`。この PC の `git config user.name` / `user.email` と同じ。ここには書きません)。**すべてのコミットにこのメールが入っています。** 公開すると誰でも見られます。隠したい場合は、公開前に履歴を書き換える(例: git filter-repo の mailmap)か、GitHub の noreply アドレスで作り直した新しいリポジトリに今の状態だけを入れる、などが必要です(人の判断で)。
+   - (b) 過去のコミットの中身: 40 コミットを調べ、ユーザー名・本名らしき語・ユーザーのフォルダの絶対パスを含むファイルは **ありません**でした(NEXT_SESSION.md の `C:\Users\...` という例示の1か所だけ。個人の情報ではない)。今の作業ツリーも `npm run check:privacy` で 0 件です。
+   - ライセンスの著作権者は `ururuzawa`、コミットの作者は上の `<git の作者名>` で名前が違います。このままでよいですか。
+9. (公開前に教えてください)GitHub のリポジトリの URL が決まったら教えてください。package.json の `repository` と README の「ソースから」の `git clone` の行に入れます(いまは入れていません)。

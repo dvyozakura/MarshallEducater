@@ -26,6 +26,9 @@ MarshallEducaterData/
 *.key
 .claude/settings.local.json
 
+# 人の作業用のフォルダ(動画の素材など。アプリとは別)
+PV/
+
 # OS・エディタ
 Thumbs.db
 desktop.ini

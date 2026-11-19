@@ -351,3 +351,11 @@ Markdown の拡張記法として次の1つに決めた。読み取りは `src/s
 - `Tools/setup.sh` に Codex の任意の点検(Git Bash の PATH に無くても `%APPDATA%\npm\codex.cmd` を見る。無くても NG にはしない)。
 - モデルを指定しないと Codex の既定のモデルで動く(この PC では `gpt-6.2-sol`)。Codex は標準エラーの最初に `model: …` を出すので、それを読んで作ったもの・記録のモデルに残す(指定したときは指定したモデル)。
 - smoke_real に `--codex`(`--engines` と一緒に使い、Gemini は飛ばす)。
+
+## 公開の準備(セッション3 項目9)
+- ライセンスは MIT(人が置いた `LICENSE`。著作権者 ururuzawa)。package.json に `license: MIT`・`author: ururuzawa`。`repository` は URL が決まるまで入れない(QUESTIONS 9)。
+- 個人情報の点検: `scripts/check-privacy.mjs`(`npm run check:privacy`、単体テスト `tests/unit/privacy.test.ts` でも走る)。git で管理しているファイルから、ユーザーのフォルダの絶対パス(`C:\Users\名前`・`/c/Users/名前`)、メールアドレス(コミットの署名用の noreply などは除く)、この PC のユーザー名・git の作者名とメール(実行した PC から読む。ファイルには書かない)、秘密の値らしきもの(API キー・トークンの形)を探す。`<ユーザー名>`・`%USERPROFILE%`・`...` などの置き換えた書き方は見逃す。わざと書いた例は行末の `check-privacy: ignore` で飛ばす。`THIRD_PARTY_NOTICES.md` の中のメール(ほかの人のライセンスの本文)は対象外。
+- 履歴: 書き換えない。`scripts/check-history.mjs`(`npm run check:history`)で作者の一覧と、過去のコミットの中身を調べ、結果は QUESTIONS 8 に書いた(人が判断する)。
+- 依存のライセンス一覧: `scripts/third-party-notices.mjs`(`npm run notices`)が、`dependencies` を順にたどった本番用の依存と Electron の、名前・版・ライセンス・配布元とライセンスの本文を `THIRD_PARTY_NOTICES.md` に書く(devDependencies は配布物に入らないので含めない)。Chromium などは配布フォルダの `LICENSES.chromium.html` を参照と書いた。
+- README の画面の画像は `Docs/images/`。偽の AI・ダミーのデータ(サンプル大学)で撮る `tests/e2e/98-readme-shots.spec.ts`(`tests/tmp/readme-shots.flag` があるときだけ動く。ふだんのテストで画像を書き換えないため)。
+- `.gitignore` に `PV/` を足した(作業ツリーに人の別の作業のフォルダがあり、中にユーザー名が入っていたため。中身には触れていない)。
